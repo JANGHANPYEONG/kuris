@@ -36,7 +36,7 @@ export default function AdminLogin() {
       setLoading(false);
       return;
     }
-    // 관리자 권한 체크
+    // 관리자 권한 체크 - user_metadata에서 확인
     if (loginData.user.user_metadata?.role !== "admin") {
       setMessage("관리자 권한이 없습니다.");
       await supabase.auth.signOut();

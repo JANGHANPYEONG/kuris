@@ -8,11 +8,13 @@ const LANGUAGES = [
 interface ChatInputProps {
   onSend: (text: string) => void;
   sidebarOffset?: boolean;
+  isCentered?: boolean;
 }
 
 export default function ChatInput({
   onSend,
   sidebarOffset = false,
+  isCentered = false,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [lang, setLang] = useState("ko");
@@ -62,13 +64,17 @@ export default function ChatInput({
 
   return (
     <form
-      className={`fixed bottom-4 right-5 ${
-        sidebarOffset ? "md:left-64" : "left-5"
-      } z-40 flex justify-center pointer-events-none`}
+      className={`${
+        isCentered
+          ? "relative w-full"
+          : `fixed bottom-4 right-5 ${
+              sidebarOffset ? "md:left-64" : "left-5"
+            } z-40 flex justify-center pointer-events-none`
+      }`}
       onSubmit={handleSubmit}
     >
       <div
-        className="
+        className={`
         flex items-end w-full max-w-2xl
         bg-white/40
         backdrop-blur-md
@@ -79,7 +85,8 @@ export default function ChatInput({
         pointer-events-auto
         transition
         ring-1 ring-black/5
-      "
+        ${isCentered ? "bg-white border-gray-200 shadow-lg" : ""}
+      `}
       >
         {/* Language button */}
         <div className="relative flex items-end">

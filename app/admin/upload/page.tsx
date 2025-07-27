@@ -33,65 +33,120 @@ export default function AdminUpload() {
 
   useEffect(() => {
     // 세션/권한 보호
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user || user.user_metadata?.role !== "admin") {
-        await supabase.auth.signOut();
+    const checkAuth = async () => {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+        console.log("Auth check:", { user: !!user, error: error?.message });
+
+        if (error || !user) {
+          console.log("No user, redirecting to login");
+          router.replace("/admin/login");
+          return;
+        }
+
+        // user_metadata에서 role 확인
+        console.log("User metadata:", user.user_metadata);
+
+        if (user.user_metadata?.role !== "admin") {
+          console.log("Not admin, signing out and redirecting");
+          await supabase.auth.signOut();
+          router.replace("/admin/login");
+        } else {
+          console.log("Auth successful, user is admin");
+        }
+      } catch (error) {
+        console.error("Auth check error:", error);
         router.replace("/admin/login");
       }
-    });
+    };
+
+    checkAuth();
   }, [router]);
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
     setMessage("");
 
-    // 파일 업로드 처리
-    const fileUrls: string[] = [];
-    if (selectedFiles.length > 0) {
-      for (const file of selectedFiles) {
-        const fileName = `${Date.now()}-${file.name}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("kuris-files")
-          .upload(fileName, file);
+    try {
+      // FormData 준비
+      const formData = new FormData();
 
-        if (uploadError) {
-          setMessage("파일 업로드 실패: " + uploadError.message);
-          setLoading(false);
-          return;
-        }
-
-        const { data: urlData } = supabase.storage
-          .from("kuris-files")
-          .getPublicUrl(fileName);
-        fileUrls.push(urlData.publicUrl);
+      // 텍스트 내용 추가
+      if (data.details) {
+        formData.append("text", data.details);
       }
-    }
 
-    const json = {
-      details: data.details || "",
-      links: links.filter((link) => link.trim() !== ""),
-      file_urls: fileUrls,
-      retention: data.retention,
-      expiry_date: data.retention === "temporary" ? data.expiry_date : null,
-      created_at: new Date().toISOString(),
-    };
+      // 링크 추가
+      const validLinks = links.filter((link) => link.trim() !== "");
+      if (validLinks.length > 0) {
+        formData.append("link", validLinks[0]); // 첫 번째 링크만 사용
+      }
 
-    // 임시로 고정된 경로에 저장 (실제로는 더 나은 구조가 필요할 수 있음)
-    const filePath = `uploads/${Date.now()}.json`;
-    const { error } = await supabase.storage
-      .from("kuris-json")
-      .upload(filePath, JSON.stringify(json), {
-        contentType: "application/json",
-        upsert: true,
+      // 파일 추가
+      if (selectedFiles.length > 0) {
+        formData.append("file", selectedFiles[0]); // 첫 번째 파일만 사용
+      }
+
+      // 보관 기간 설정
+      if (data.retention === "temporary" && data.expiry_date) {
+        const expiryDate = new Date(data.expiry_date);
+        const now = new Date();
+        const retentionDays = Math.ceil(
+          (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        formData.append("retentionDays", retentionDays.toString());
+      }
+
+      // 관리자 토큰 가져오기
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("인증 토큰이 없습니다.");
+      }
+
+      console.log(
+        "Making API call with token:",
+        session.access_token?.substring(0, 20) + "..."
+      );
+
+      // Edge Function 호출
+      const response = await fetch("/api/admin/guidelines/upload", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: formData,
       });
 
-    if (error) {
-      setMessage("업로드 실패: " + error.message);
-    } else {
+      console.log("Response status:", response.status);
+      console.log(
+        "Response headers:",
+        Object.fromEntries(response.headers.entries())
+      );
+
+      const result = await response.json();
+      console.log("Response result:", result);
+
+      if (!response.ok) {
+        throw new Error(result.error || "업로드 실패");
+      }
+
       setMessage("업로드 성공!");
       router.push("/admin");
+    } catch (error) {
+      console.error("Upload error:", error);
+      setMessage(
+        `업로드 실패: ${
+          error instanceof Error ? error.message : "알 수 없는 오류"
+        }`
+      );
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

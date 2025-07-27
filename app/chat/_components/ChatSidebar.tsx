@@ -7,9 +7,54 @@ interface Props {
 }
 
 const ITEMS = [
-  { key: "chat", label: "채팅" },
-  { key: "contacts", label: "임원진 연락처" },
-  { key: "map", label: "네이버맵" },
+  {
+    key: "chat",
+    label: "채팅",
+    icon: (
+      <svg
+        width="25"
+        height="20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    ),
+  },
+  {
+    key: "contacts",
+    label: "임원진 연락처",
+    icon: (
+      <svg
+        width="25"
+        height="20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+  {
+    key: "map",
+    label: "네이버맵",
+    icon: (
+      <svg
+        width="25"
+        height="20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3l6-3" />
+      </svg>
+    ),
+  },
 ] as const;
 
 export default function ChatSidebar({
@@ -18,10 +63,14 @@ export default function ChatSidebar({
   onClose,
 }: Props) {
   return (
-    <aside className="relative flex flex-col w-64 h-full bg-white border-r shadow-lg">
+    <aside className="relative flex flex-col w-64 h-full bg-white shadow-2xl">
       {/* 브랜드 / 닫기 */}
-      <div className="h-16 flex items-center justify-center border-b font-extrabold text-2xl text-kucrimson">
-        KUris
+      <div className="h-16 flex items-center px-1 border-b border-gray-100">
+        <img
+          src="/kuris_logo.png"
+          alt="KUris Logo"
+          className="h-16 w-auto object-contain"
+        />
       </div>
 
       {/* 왼쪽 화살표(닫기) – 모바일에서만 보이도록 */}
@@ -46,21 +95,21 @@ export default function ChatSidebar({
       {/* 메뉴 */}
       <nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1">
-          {ITEMS.map(({ key, label }) => (
+          {ITEMS.map(({ key, label, icon }) => (
             <li key={key}>
               <button
                 onClick={() => {
                   setActiveTab(key);
-                  onClose(); /* 모바일 UX 개선 */
                 }}
-                className={`w-full text-left px-6 py-3 rounded-lg font-medium transition
+                className={`w-full text-left px-6 py-3 rounded-lg font-medium transition flex items-center space-x-3
                     ${
                       activeTab === key
                         ? "bg-kucrimson/10 text-kucrimson"
                         : "text-gray-700 hover:bg-kucrimson/5"
                     }`}
               >
-                {label}
+                <span className="flex-shrink-0">{icon}</span>
+                <span>{label}</span>
               </button>
             </li>
           ))}
