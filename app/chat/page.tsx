@@ -2,17 +2,21 @@
 import { useState, useEffect } from "react";
 import ChatSidebar from "./_components/ChatSidebar";
 import ChatWindow from "./_components/ChatWindow";
-import { ChatMessage } from "./_components/types";
+import { ChatMessage, BotContent } from "./_components/types";
 import ChatInput from "./_components/ChatInput";
 import ContactList from "./_components/ContactList";
 import NaverMapBox from "./_components/NaverMapBox";
+import { LanguageProvider } from "./_components/LanguageContext";
+import { useLanguage } from "./_components/LanguageContext";
+import { t } from "./_components/translations";
 
-export default function ChatPage() {
+function ChatPageContent() {
   const [activeTab, setActiveTab] = useState<"chat" | "contacts" | "map">(
     "chat"
   );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { language } = useLanguage();
 
   const handleSend = async (text: string) => {
     setMessages((msgs) => [...msgs, { role: "user", content: text }]);
@@ -24,46 +28,82 @@ export default function ChatPage() {
         role: "bot",
         content: {
           type: "loading",
-          data: { message: "답변을 생성하고 있습니다..." },
+          data: { message: t(language, "loading") },
         },
       },
     ]);
 
     try {
-      // 실제 API 호출
+      // 스트리밍 API 호출
       const response = await fetch("/api/ask", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ question: text }),
+        body: JSON.stringify({ question: text, language, stream: true }),
       });
-
-      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "API 호출 실패");
+        const errorResult = await response.json();
+        throw new Error(errorResult.error || "API 호출 실패");
       }
 
-      // 로딩 메시지를 실제 답변으로 교체
-      setMessages((msgs) => {
-        const newMsgs = [...msgs];
-        const lastIndex = newMsgs.length - 1;
-        if (
-          newMsgs[lastIndex]?.role === "bot" &&
-          typeof newMsgs[lastIndex].content !== "string" &&
-          newMsgs[lastIndex].content.type === "loading"
-        ) {
-          newMsgs[lastIndex] = {
-            role: "bot",
-            content: {
-              type: "text",
-              data: { text: result.answer },
-            },
-          };
-        }
-        return newMsgs;
-      });
+      // 스트리밍 응답인 경우
+      if (response.body) {
+        // 로딩 메시지를 스트리밍 메시지로 교체
+        setMessages((msgs) => {
+          const newMsgs = [...msgs];
+          const lastIndex = newMsgs.length - 1;
+          if (
+            newMsgs[lastIndex]?.role === "bot" &&
+            typeof newMsgs[lastIndex].content !== "string" &&
+            "type" in newMsgs[lastIndex].content &&
+            newMsgs[lastIndex].content.type === "loading"
+          ) {
+            newMsgs[lastIndex] = {
+              role: "bot",
+              content: { stream: response.body! },
+            };
+          }
+          return newMsgs;
+        });
+      } else {
+        // 일반 JSON 응답인 경우 (fallback)
+        const result = await response.json();
+
+        // 로딩 메시지를 실제 답변으로 교체
+        setMessages((msgs) => {
+          const newMsgs = [...msgs];
+          const lastIndex = newMsgs.length - 1;
+          if (
+            newMsgs[lastIndex]?.role === "bot" &&
+            typeof newMsgs[lastIndex].content !== "string" &&
+            "type" in newMsgs[lastIndex].content &&
+            newMsgs[lastIndex].content.type === "loading"
+          ) {
+            // 새로운 blocks JSON 형식 처리
+            if (result.blocks) {
+              newMsgs[lastIndex] = {
+                role: "bot",
+                content: {
+                  blocks: result.blocks,
+                  intent: result.intent,
+                },
+              };
+            } else {
+              // 기존 형식 호환성 유지
+              newMsgs[lastIndex] = {
+                role: "bot",
+                content: {
+                  type: "text",
+                  data: { text: result.answer || "답변을 생성할 수 없습니다." },
+                },
+              };
+            }
+          }
+          return newMsgs;
+        });
+      }
     } catch (error) {
       console.error("Chat API error:", error);
 
@@ -71,17 +111,19 @@ export default function ChatPage() {
       setMessages((msgs) => {
         const newMsgs = [...msgs];
         const lastIndex = newMsgs.length - 1;
+        const lastMessage = newMsgs[lastIndex];
         if (
-          newMsgs[lastIndex]?.role === "bot" &&
-          typeof newMsgs[lastIndex].content !== "string" &&
-          newMsgs[lastIndex].content.type === "loading"
+          lastMessage?.role === "bot" &&
+          typeof lastMessage.content !== "string" &&
+          "type" in lastMessage.content &&
+          (lastMessage.content as { type: string }).type === "loading"
         ) {
           newMsgs[lastIndex] = {
             role: "bot",
             content: {
               type: "text",
               data: {
-                text: `죄송합니다. 오류가 발생했습니다: ${
+                text: `${t(language, "error")} ${
                   error instanceof Error ? error.message : "알 수 없는 오류"
                 }`,
               },
@@ -144,7 +186,7 @@ export default function ChatPage() {
                         className="w-80 h-80 object-contain"
                       />
                       <p className="text-gray-600 text-xl hidden md:block">
-                        무엇을 도와드릴까요?
+                        {t(language, "welcome")}
                       </p>
                     </div>
                   </div>
@@ -176,5 +218,13 @@ export default function ChatPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <LanguageProvider>
+      <ChatPageContent />
+    </LanguageProvider>
   );
 }
