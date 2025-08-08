@@ -1,9 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-
-const LANGUAGES = [
-  { code: "ko", label: "한국어" },
-  { code: "en", label: "English" },
-];
+import { LANGUAGES, t } from "./translations";
+import { useLanguage } from "./LanguageContext";
 
 interface ChatInputProps {
   onSend: (text: string) => void;
@@ -17,7 +14,7 @@ export default function ChatInput({
   isCentered = false,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
-  const [lang, setLang] = useState("ko");
+  const { language, setLanguage } = useLanguage();
   const [showLang, setShowLang] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -108,12 +105,12 @@ export default function ChatInput({
                   key={l.code}
                   type="button"
                   className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${
-                    lang === l.code
+                    language === l.code
                       ? "font-bold text-kucrimson"
                       : "text-gray-700"
                   }`}
                   onClick={() => {
-                    setLang(l.code);
+                    setLanguage(l.code);
                     setShowLang(false);
                   }}
                 >
@@ -127,7 +124,7 @@ export default function ChatInput({
         <textarea
           ref={textareaRef}
           rows={1}
-          placeholder="무엇이든 물어보세요"
+          placeholder={t(language, "placeholder")}
           className="flex-1 min-h-12 max-h-40 resize-none bg-transparent px-2 py-2 focus:outline-none text-base"
           value={value}
           onChange={(e) => setValue(e.target.value)}

@@ -23,12 +23,19 @@ export default function ChatWindow({ messages }: { messages: ChatMessage[] }) {
               <div className="max-w-[80%] rounded-xl px-4 py-2 shadow bg-kucrimson text-white">
                 {typeof msg.content === "string"
                   ? msg.content
-                  : (msg.content.data as TextData).text}
+                  : "blocks" in msg.content
+                  ? "사용자 메시지"
+                  : "data" in msg.content
+                  ? (msg.content.data as TextData).text
+                  : "사용자 메시지"}
               </div>
             </div>
           ) : (
             // Bot 메시지 - 말풍선 없이 BotMessage 컴포넌트 사용
-            <BotMessage content={msg.content} />
+            <BotMessage
+              content={msg.content}
+              isTyping={msg.isTyping || i === messages.length - 1} // 메시지의 isTyping 속성 또는 마지막 메시지
+            />
           )}
         </div>
       ))}

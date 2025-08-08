@@ -1,67 +1,55 @@
 import React from "react";
+import { useLanguage } from "./LanguageContext";
+import { t } from "./translations";
 
 interface Props {
   activeTab: string;
-  setActiveTab: (tab: "chat" | "contacts" | "map") => void;
+  setActiveTab: (tab: "chat" | "contacts") => void;
   onClose: () => void;
 }
-
-const ITEMS = [
-  {
-    key: "chat",
-    label: "채팅",
-    icon: (
-      <svg
-        width="25"
-        height="20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      </svg>
-    ),
-  },
-  {
-    key: "contacts",
-    label: "임원진 연락처",
-    icon: (
-      <svg
-        width="25"
-        height="20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-  },
-  {
-    key: "map",
-    label: "네이버맵",
-    icon: (
-      <svg
-        width="25"
-        height="20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3l6-3" />
-      </svg>
-    ),
-  },
-] as const;
 
 export default function ChatSidebar({
   activeTab,
   setActiveTab,
   onClose,
 }: Props) {
+  const { language } = useLanguage();
+
+  const ITEMS = [
+    {
+      key: "chat",
+      label: t(language, "chat"),
+      icon: (
+        <svg
+          width="25"
+          height="20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      ),
+    },
+    {
+      key: "contacts",
+      label: t(language, "contacts"),
+      icon: (
+        <svg
+          width="25"
+          height="20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
+    },
+  ] as const;
   return (
     <aside className="relative flex flex-col w-64 h-full bg-white shadow-2xl">
       {/* 브랜드 / 닫기 */}
@@ -117,7 +105,7 @@ export default function ChatSidebar({
       </nav>
 
       <footer className="p-4 text-xs text-gray-400 border-t text-center">
-        © KUris 2025
+        {t(language, "footer")}
       </footer>
     </aside>
   );

@@ -44,7 +44,7 @@ serve(async (req) => {
             - intent: category like "life/food", "visa/arc", "academic", "housing", "transportation", "health", "emergency"
             - title: concise title for the guideline
             - summary: brief summary in Korean
-            - details: detailed information in Korean with specific facts, numbers, contacts, locations`,
+            - details: structured JSON object with specific information like dates, locations, contacts, requirements, etc.`,
             },
             {
               role: "user",
@@ -128,7 +128,13 @@ serve(async (req) => {
       }
     }
 
-    /* 3-3. 요약 임베딩 생성 */
+    /* 3-3. summary + details 합본 임베딩 생성 */
+    const fullText = `${meta.summary}\n\n${JSON.stringify(
+      meta.details,
+      null,
+      2
+    )}`;
+
     const embResponse = await fetch("https://api.openai.com/v1/embeddings", {
       method: "POST",
       headers: {
@@ -137,7 +143,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "text-embedding-3-small",
-        input: meta.summary,
+        input: fullText,
       }),
     });
 

@@ -21,7 +21,7 @@ as $$
     g.title,
     1 - (g.summary_embedding <=> query_embedding) as score
   from public.guidelines g
-  where g.intent_id = match_guidelines_by_vec.intent_id
+  where (match_guidelines_by_vec.intent_id is null or g.intent_id = match_guidelines_by_vec.intent_id)
     and g.summary_embedding <=> query_embedding < (1 - match_threshold)
   order by g.summary_embedding <=> query_embedding   -- ascending = closer
   limit match_count;

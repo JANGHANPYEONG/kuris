@@ -5,15 +5,13 @@ import ChatWindow from "./_components/ChatWindow";
 import { ChatMessage, BotContent } from "./_components/types";
 import ChatInput from "./_components/ChatInput";
 import ContactList from "./_components/ContactList";
-import NaverMapBox from "./_components/NaverMapBox";
+
 import { LanguageProvider } from "./_components/LanguageContext";
 import { useLanguage } from "./_components/LanguageContext";
 import { t } from "./_components/translations";
 
 function ChatPageContent() {
-  const [activeTab, setActiveTab] = useState<"chat" | "contacts" | "map">(
-    "chat"
-  );
+  const [activeTab, setActiveTab] = useState<"chat" | "contacts">("chat");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { language } = useLanguage();
@@ -214,7 +212,6 @@ function ChatPageContent() {
             </>
           )}
           {activeTab === "contacts" && <ContactList />}
-          {activeTab === "map" && <NaverMapBox />}
         </div>
       </main>
     </div>

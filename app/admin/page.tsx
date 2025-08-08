@@ -1,24 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-interface GuidelineRow {
-  id: string;
-  intent: string;
-  title: string;
-  summary: string;
-  original_type: string;
-  original_ref: string;
-  expires_at: string | null;
-  created_at: string;
-}
-
-export default function AdminPage() {
-  const [guidelines, setGuidelines] = useState<GuidelineRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+export default function AdminDashboard() {
   const router = useRouter();
 
   useEffect(() => {
@@ -29,132 +15,60 @@ export default function AdminPage() {
         router.replace("/admin/login");
       }
     });
-    fetchGuidelines();
   }, []);
 
-  const fetchGuidelines = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      // guidelines 테이블에서 데이터 조회
-      const { data, error } = await supabase
-        .from("guidelines")
-        .select(
-          `
-          id,
-          title,
-          summary,
-          original_type,
-          original_ref,
-          expires_at,
-          created_at,
-          intents!inner(name)
-        `
-        )
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const guidelinesWithIntent =
-        data?.map((item) => ({
-          id: item.id,
-          intent: (item.intents as any)?.name || "unknown",
-          title: item.title || "제목 없음",
-          summary: item.summary || "",
-          original_type: item.original_type || "text",
-          original_ref: item.original_ref || "",
-          expires_at: item.expires_at,
-          created_at: item.created_at,
-        })) || [];
-
-      setGuidelines(guidelinesWithIntent);
-    } catch (e) {
-      console.error("Fetch guidelines error:", e);
-      setError("지침 목록을 불러올 수 없습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async (row: GuidelineRow) => {
-    if (!confirm(`정말 삭제하시겠습니까? (${row.title})`)) return;
-
-    try {
-      // guidelines row 삭제 (CASCADE로 관련 데이터도 함께 삭제됨)
-      const { error } = await supabase
-        .from("guidelines")
-        .delete()
-        .eq("id", row.id);
-
-      if (error) {
-        alert("삭제 실패: " + error.message);
-      } else {
-        setGuidelines(guidelines.filter((g) => g.id !== row.id));
-      }
-    } catch (e) {
-      console.error("Delete error:", e);
-      alert("삭제 중 오류가 발생했습니다.");
-    }
-  };
+  const dashboardItems = [
+    {
+      title: "새 지침 업로드",
+      description: "새로운 지침을 업로드합니다",
+      href: "/admin/upload",
+      icon: "📤",
+      color: "bg-blue-500 hover:bg-blue-600",
+    },
+    {
+      title: "지침 목록 확인",
+      description: "업로드된 지침들을 확인하고 관리합니다",
+      href: "/admin/guidelines",
+      icon: "📋",
+      color: "bg-green-500 hover:bg-green-600",
+    },
+    {
+      title: "사용자 통계 확인",
+      description: "사용자 활동 통계를 확인합니다",
+      href: "/admin/statistic",
+      icon: "📊",
+      color: "bg-purple-500 hover:bg-purple-600",
+    },
+    {
+      title: "운영진 연락처 관리",
+      description: "운영진 연락처를 등록하고 관리합니다",
+      href: "/admin/contact",
+      icon: "👥",
+      color: "bg-orange-500 hover:bg-orange-600",
+    },
+  ];
 
   return (
-    <div className="max-w-3xl mx-auto py-12">
-      <h1 className="text-2xl font-bold mb-6">관리자 콘솔 - 지침 목록</h1>
-      <Link
-        href="/admin/upload"
-        className="mb-4 inline-block bg-blue-600 text-white px-4 py-2 rounded"
-      >
-        + 새 지침 업로드
-      </Link>
-      {loading ? (
-        <div className="text-center">로딩 중...</div>
-      ) : error ? (
-        <div className="text-red-600">{error}</div>
-      ) : guidelines.length === 0 ? (
-        <div className="text-gray-500">업로드된 지침이 없습니다.</div>
-      ) : (
-        <table className="w-full border mt-4 text-sm">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="p-2">Intent</th>
-              <th className="p-2">제목</th>
-              <th className="p-2">요약</th>
-              <th className="p-2">타입</th>
-              <th className="p-2">만료일</th>
-              <th className="p-2">생성일</th>
-              <th className="p-2">액션</th>
-            </tr>
-          </thead>
-          <tbody>
-            {guidelines.map((row: GuidelineRow) => (
-              <tr key={row.id} className="border-b">
-                <td className="p-2">{row.intent}</td>
-                <td className="p-2">{row.title}</td>
-                <td className="p-2 max-w-xs truncate">{row.summary}</td>
-                <td className="p-2">{row.original_type}</td>
-                <td className="p-2">
-                  {row.expires_at
-                    ? new Date(row.expires_at).toLocaleDateString()
-                    : "영구"}
-                </td>
-                <td className="p-2">
-                  {row.created_at
-                    ? new Date(row.created_at).toLocaleString()
-                    : "-"}
-                </td>
-                <td className="p-2 flex gap-2">
-                  <button
-                    onClick={() => handleDelete(row)}
-                    className="text-red-600 underline"
-                  >
-                    삭제
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+    <div className="max-w-6xl mx-auto py-12 px-4">
+      <h1 className="text-3xl font-bold mb-8 text-center">관리자 대시보드</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+        {dashboardItems.map((item, index) => (
+          <Link
+            key={index}
+            href={item.href}
+            className={`${item.color} text-white rounded-lg p-6 transition-all duration-200 transform hover:scale-105 shadow-lg`}
+          >
+            <div className="flex items-center space-x-4">
+              <div className="text-4xl">{item.icon}</div>
+              <div>
+                <h2 className="text-xl font-semibold mb-2">{item.title}</h2>
+                <p className="text-blue-100">{item.description}</p>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
