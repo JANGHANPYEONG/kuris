@@ -5,6 +5,7 @@ export interface Block {
   url?: string;
   title?: string;
   description?: string;
+  details?: string;
 }
 
 // 채팅 메시지 타입 정의

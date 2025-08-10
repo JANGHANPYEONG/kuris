@@ -40,7 +40,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <span>KUris Admin</span>
         <nav className="space-x-4 text-base font-normal">
           <Link href="/admin" className="hover:underline">
-            지침 목록
+            홈
           </Link>
           <Link href="/admin/upload" className="hover:underline">
             지침 업로드

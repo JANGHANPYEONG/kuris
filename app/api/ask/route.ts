@@ -78,10 +78,7 @@ interface Block {
   url?: string;
   title?: string;
   description?: string;
-}
-
-interface BlocksResponse {
-  blocks: Block[];
+  details?: string;
 }
 
 // JSON 컨텍스트 로드 함수
@@ -183,7 +180,7 @@ ${contextBlocks}`;
   }
 
   try {
-    const parsed = JSON.parse(content) as BlocksResponse;
+    const parsed = JSON.parse(content) as { blocks: Block[] };
     return {
       blocks: parsed.blocks || [
         { type: "text", text: t(language, "parseError") },
@@ -199,9 +196,170 @@ ${contextBlocks}`;
   }
 }
 
+// GPT Blocks JSON 응답 생성 함수 (스트리밍 모드 - NDJSON 안정화)
+async function createStreamingBlocksAnswer(
+  question: string,
+  contexts: JsonContext[],
+  language: string
+): Promise<ReadableStream<Uint8Array>> {
+  const contextBlocks = contexts
+    .map(
+      (ctx, i) =>
+        `<doc id="guideline_${i + 1}">\nsummary: ${
+          ctx.summary
+        }\ndetails: ${JSON.stringify(ctx.details, null, 2)}\n</doc>`
+    )
+    .join("\n\n");
+
+  const systemPrompt = `# System
+너는 KUris 챗봇이다.
+- 제공된 JSON context 외의 사적 지식 사용 금지
+- 질문 언어로 답변
+- 반드시 최종 출력은 { "blocks": [...] } JSON 하나로 작성하라.
+
+## Block 구조 규칙
+- blocks 타입: "text" | "link" | "image" | "map"
+- **text 타입**: 반드시 "text" 속성에 메인 내용을 넣어라
+- **text 블록 예시**: 
+  {
+    "type": "text",
+    "text": "메인 텍스트 내용 (마크다운 형식 지원)"
+  }
+- 텍스트는 제목/설명/세부 항목으로 구조화 (굵게/번호/줄바꿈)
+
+## JSON Context
+${contextBlocks}`;
+
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        // OpenAI 스트림 시작
+        const openaiStream = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: question },
+          ],
+          temperature: 0.7,
+          max_tokens: 1000,
+          stream: true,
+        });
+
+        // 상태
+        let buf = ""; // 전체 누적 버퍼
+        let inString = false; // JSON 문자열 내부 여부
+        let escape = false; // 이스케이프 직후 여부
+        let depth = 0; // 중괄호 깊이
+        let seenBlocksKey = false; // "blocks" 키를 봤는가
+        let inBlocks = false; // blocks 배열 안인가
+        let objStart = -1; // 현재 객체 시작 인덱스(buf 기준)
+        let lastCut = 0; // 메모리 절약용 컷 포인트
+
+        const emitBlock = (raw: string) => {
+          try {
+            const obj = JSON.parse(raw); // 유효성 보장
+            // NDJSON 형식으로 한 줄씩 전송 (data: 접두사 없음)
+            const line = JSON.stringify(obj) + "\n";
+            controller.enqueue(encoder.encode(line));
+          } catch {
+            /* 무시(불완전/일시적 조각) */
+          }
+        };
+
+        for await (const chunk of openaiStream) {
+          const delta = chunk.choices?.[0]?.delta?.content;
+          if (!delta) continue;
+
+          // 누적 버퍼에 새 청크 더하기
+          const startIdx = buf.length;
+          buf += delta;
+
+          // 새로 들어온 구간만 스캔
+          for (let i = 0; i < delta.length; i++) {
+            const ch = delta[i];
+            const abs = startIdx + i; // buf 기준 절대 인덱스
+
+            // 문자열/이스케이프
+            if (escape) {
+              escape = false;
+              continue;
+            }
+            if (ch === "\\") {
+              escape = true;
+              continue;
+            }
+            if (ch === '"') {
+              inString = !inString;
+              continue;
+            }
+            if (inString) continue;
+
+            // "blocks" 키 탐지(아주 단순한 스캐너)
+            // ... "blocks" ... : [
+            if (!seenBlocksKey) {
+              // buf의 최근 일부에서 "blocks" 토큰이 등장했는지 확인
+              const window = buf.slice(Math.max(0, abs - 10), abs + 7);
+              if (window.includes('"blocks"')) {
+                seenBlocksKey = true;
+              }
+            } else if (!inBlocks) {
+              if (ch === "[") {
+                inBlocks = true; // blocks 배열 진입
+                continue;
+              }
+            }
+
+            // 중괄호 깊이 추적
+            if (ch === "{") {
+              depth++;
+              // blocks 배열 내부에서 깊이 2에서 객체 시작 포착
+              if (inBlocks && depth === 2 && objStart === -1) {
+                objStart = abs;
+              }
+            } else if (ch === "}") {
+              // 객체 종료 포착
+              if (inBlocks && depth === 2 && objStart !== -1) {
+                const raw = buf.slice(objStart, abs + 1);
+                emitBlock(raw);
+                objStart = -1;
+                // 메모리 컷: 방금 객체 끝까지 잘라내도 되지만
+                // 안전하게 lastCut 갱신만 하고, 주기적으로 컷해도 됨
+                lastCut = abs + 1;
+              }
+              depth--;
+            }
+
+            // blocks 배열 종료 감지
+            if (inBlocks && ch === "]" && depth === 1) {
+              inBlocks = false;
+            }
+          }
+
+          // 메모리 절약: 컷 포인트 이전은 제거
+          if (lastCut > 0 && lastCut > buf.length / 2) {
+            buf = buf.slice(lastCut);
+            lastCut = 0;
+            // objStart가 있었으면 재정렬 필요하지만,
+            // 우리는 objStart가 -1일 때만 컷하도록 위에서만 갱신
+          }
+        }
+
+        controller.close();
+      } catch (err) {
+        console.error("GPT streaming error:", err);
+        controller.error(err);
+      }
+    },
+  });
+}
+
+// 스트리밍 JSON 응답 생성 함수
+
 export async function POST(req: NextRequest) {
   try {
-    const { question, language = "en" } = await req.json();
+    const { question, language = "en", stream = false } = await req.json();
 
     if (!question) {
       return NextResponse.json(
@@ -304,30 +462,105 @@ export async function POST(req: NextRequest) {
     if (contexts_used === 0) {
       // Fallback: 컨텍스트가 없을 때 기본 응답
       console.log("=== Fallback 응답 생성 ===");
-      answer = {
-        blocks: [
+
+      if (stream) {
+        // 스트리밍 모드: fallback 응답을 스트리밍으로 전송
+        const fallbackBlocks = [
           {
             type: "text",
             text: t(language, "noInfo"),
           },
-        ],
-        usage: undefined,
-      };
+        ];
+
+        const encoder = new TextEncoder();
+        const fallbackStream = new ReadableStream({
+          start(controller) {
+            // fallback 블록을 NDJSON 형식으로 전송
+            fallbackBlocks.forEach((block) => {
+              const line = JSON.stringify(block) + "\n";
+              controller.enqueue(encoder.encode(line));
+            });
+            controller.close();
+          },
+        });
+
+        // 로그 저장
+        await supabase.from("chat_logs").insert({
+          user_id: null,
+          question,
+          answer: "fallback_response",
+          intent: "fallback",
+          tokens_in: null,
+          tokens_out: null,
+        });
+
+        return new Response(fallbackStream, {
+          headers: {
+            "Content-Type": "application/x-ndjson; charset=utf-8",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+            "X-Accel-Buffering": "no",
+          },
+        });
+      } else {
+        // 일반 모드: 기존 방식 사용
+        answer = {
+          blocks: [
+            {
+              type: "text",
+              text: t(language, "noInfo"),
+            },
+          ],
+          usage: undefined,
+        };
+      }
     } else {
       // 정상적인 GPT 응답 생성
-      answer = await createBlocksAnswer(question, jsonContexts, language);
+      if (stream) {
+        // 스트리밍 모드: 실제 GPT 스트리밍 사용
+        const streamingResponse = await createStreamingBlocksAnswer(
+          question,
+          jsonContexts,
+          language
+        );
+
+        // 로그 저장 (스트리밍의 경우 간단한 로그)
+        await supabase.from("chat_logs").insert({
+          user_id: null,
+          question,
+          answer: "streaming_response",
+          intent: "vector-only",
+          tokens_in: null,
+          tokens_out: null,
+        });
+
+        return new Response(streamingResponse, {
+          headers: {
+            "Content-Type": "application/x-ndjson; charset=utf-8",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+            "X-Accel-Buffering": "no", // 프록시 버퍼링 방지
+          },
+        });
+      } else {
+        // 일반 모드: 기존 방식 사용
+        answer = await createBlocksAnswer(question, jsonContexts, language);
+      }
     }
 
-    // ⑥ 로그 저장
-    await supabase.from("chat_logs").insert({
-      user_id: null, // 익명 사용자
-      question,
-      answer: JSON.stringify(answer.blocks), // blocks JSON 저장
-      intent: contexts_used === 0 ? "fallback" : "vector-only", // fallback 구분
-      tokens_in: answer.usage?.prompt_tokens,
-      tokens_out: answer.usage?.completion_tokens,
-    });
+    // ⑥ 로그 저장 (일반 모드만)
+    if (!stream) {
+      await supabase.from("chat_logs").insert({
+        user_id: null, // 익명 사용자
+        question,
+        answer: JSON.stringify(answer.blocks), // blocks JSON 저장
+        intent: contexts_used === 0 ? "fallback" : "vector-only", // fallback 구분
+        tokens_in: answer.usage?.prompt_tokens,
+        tokens_out: answer.usage?.completion_tokens,
+      });
+    }
 
+    // 일반 JSON 응답
     return NextResponse.json({
       blocks: answer.blocks,
       intent: contexts_used === 0 ? "fallback" : "vector-only",

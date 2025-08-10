@@ -98,17 +98,12 @@ export default function BotMessage({
   if ("blocks" in content && Array.isArray(content.blocks)) {
     const blocks = content.blocks as Block[];
 
-    // 타이핑 중일 때는 전체 텍스트를 하나로 합쳐서 처리
+    // 타이핑 효과를 위해 StreamingText 컴포넌트 사용
     if (isTyping) {
-      const allText = blocks
-        .filter((block) => block.type === "text" && block.text)
-        .map((block) => block.text)
-        .join("\n\n");
-
       return (
         <div className="w-full">
           <div className="text-gray-900 leading-relaxed">
-            <TypingText text={allText} speed={30} />
+            <StreamingText blocks={blocks} className="" />
           </div>
         </div>
       );

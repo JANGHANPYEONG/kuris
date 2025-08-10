@@ -37,8 +37,10 @@ function ChatPageContent() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/x-ndjson", // NDJSON 응답 요청
         },
         body: JSON.stringify({ question: text, language, stream: true }),
+        cache: "no-store", // 캐시 방지
       });
 
       if (!response.ok) {
@@ -60,7 +62,7 @@ function ChatPageContent() {
           ) {
             newMsgs[lastIndex] = {
               role: "bot",
-              content: { stream: response.body! },
+              content: { stream: response.body! }, // ✅ 여기서만 1회 스트림 소비
             };
           }
           return newMsgs;
