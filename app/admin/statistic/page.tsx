@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 
 interface ChatLog {
   id: string;
-  user_message: string;
-  bot_response: string;
+  question: string;
+  answer: string;
   created_at: string;
 }
 
@@ -79,7 +79,7 @@ export default function StatisticPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto py-12 px-4">
+    <div className="w-full py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">사용자 통계</h1>
       </div>
@@ -183,7 +183,7 @@ export default function StatisticPage() {
                             사용자:
                           </p>
                           <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded">
-                            {chat.user_message}
+                            {chat.question}
                           </p>
                         </div>
                         <div>
@@ -191,7 +191,17 @@ export default function StatisticPage() {
                             봇:
                           </p>
                           <p className="text-sm text-gray-700 bg-blue-50 p-2 rounded">
-                            {chat.bot_response}
+                            {chat.answer === "fallback_response" ? (
+                              <span className="text-red-600 font-medium">
+                                정보없음
+                              </span>
+                            ) : chat.answer === "streaming_response" ? (
+                              <span className="text-green-600 font-medium">
+                                대답성공
+                              </span>
+                            ) : (
+                              chat.answer
+                            )}
                           </p>
                         </div>
                       </div>

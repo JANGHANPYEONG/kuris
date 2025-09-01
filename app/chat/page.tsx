@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import Image from "next/image";
 import ChatSidebar from "./_components/ChatSidebar";
 import ChatWindow from "./_components/ChatWindow";
-import { ChatMessage, BotContent } from "./_components/types";
+import { ChatMessage } from "./_components/types";
 import ChatInput from "./_components/ChatInput";
 import ContactList from "./_components/ContactList";
 
@@ -180,10 +181,12 @@ function ChatPageContent() {
                 <div className="flex-1 flex flex-col items-center justify-center px-6">
                   <div className="text-center mb-8">
                     <div className="flex items-center justify-center space-x-4">
-                      <img
-                        src="/kuris.png"
+                      <Image
+                        src="/kuris-real.png"
                         alt="KUris 캐릭터"
-                        className="w-80 h-80 object-contain"
+                        width={320}
+                        height={320}
+                        className="object-contain"
                       />
                       <p className="text-gray-600 text-xl hidden md:block">
                         {t(language, "welcome")}

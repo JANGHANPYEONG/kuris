@@ -117,7 +117,7 @@ export default function GuidelinesPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto py-12 px-4">
+    <div className="w-full py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">지침 목록</h1>
         <div className="flex gap-2">
@@ -167,29 +167,59 @@ export default function GuidelinesPage() {
           <div className="text-gray-400 text-sm">새 지침을 업로드해보세요.</div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
           <div className="p-4 bg-gray-50 border-b">
             <div className="text-sm text-gray-600">
               총 {guidelines.length}개의 지침이 있습니다.
             </div>
           </div>
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" style={{ minWidth: "1400px" }}>
             <thead>
               <tr className="bg-gray-50">
-                <th className="p-4 text-left font-semibold">제목</th>
-                <th className="p-4 text-left font-semibold">요약</th>
-                <th className="p-4 text-left font-semibold">타입</th>
-                <th className="p-4 text-left font-semibold">만료일</th>
-                <th className="p-4 text-left font-semibold">생성일</th>
-                <th className="p-4 text-left font-semibold">액션</th>
+                <th
+                  className="p-4 text-left font-semibold"
+                  style={{ width: "200px" }}
+                >
+                  제목
+                </th>
+                <th
+                  className="p-4 text-left font-semibold"
+                  style={{ width: "600px" }}
+                >
+                  요약
+                </th>
+                <th
+                  className="p-4 text-left font-semibold"
+                  style={{ width: "100px" }}
+                >
+                  타입
+                </th>
+                <th
+                  className="p-4 text-left font-semibold"
+                  style={{ width: "150px" }}
+                >
+                  만료일
+                </th>
+                <th
+                  className="p-4 text-left font-semibold"
+                  style={{ width: "200px" }}
+                >
+                  생성일
+                </th>
+                <th
+                  className="p-4 text-left font-semibold"
+                  style={{ width: "100px" }}
+                >
+                  액션
+                </th>
               </tr>
             </thead>
             <tbody>
               {guidelines.map((row: GuidelineRow) => (
                 <tr key={row.id} className="border-b hover:bg-gray-50">
                   <td className="p-4 font-medium">{row.title}</td>
-                  <td className="p-4 max-w-xs">
-                    <div className="truncate" title={row.summary}>
+                  <td className="p-4">
+                    <div className="max-w-none break-words" title={row.summary}>
                       {row.summary}
                     </div>
                   </td>

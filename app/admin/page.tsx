@@ -46,13 +46,20 @@ export default function AdminDashboard() {
       icon: "👥",
       color: "bg-orange-500 hover:bg-orange-600",
     },
+    {
+      title: "시스템 설정",
+      description: "match_threshold 등 시스템 설정을 관리합니다",
+      href: "/admin/settings",
+      icon: "⚙️",
+      color: "bg-indigo-500 hover:bg-indigo-600",
+    },
   ];
 
   return (
-    <div className="max-w-6xl mx-auto py-12 px-4">
+    <div className="w-full py-8">
       <h1 className="text-3xl font-bold mb-8 text-center">관리자 대시보드</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
         {dashboardItems.map((item, index) => (
           <Link
             key={index}

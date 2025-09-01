@@ -42,9 +42,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <Link href="/admin" className="hover:underline">
             홈
           </Link>
-          <Link href="/admin/upload" className="hover:underline">
-            지침 업로드
-          </Link>
           <button
             onClick={async () => {
               await supabase.auth.signOut();
@@ -56,7 +53,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </button>
         </nav>
       </header>
-      <main className="max-w-3xl mx-auto py-8 text-black">{children}</main>
+      <main className="w-full px-4 py-6 text-black">{children}</main>
     </div>
   );
 }

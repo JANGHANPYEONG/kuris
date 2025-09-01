@@ -50,8 +50,8 @@ export interface LoadingData {
   message?: string;
 }
 
-// 언어 관련 타입 정의
-export type Language = "en" | "ja" | "zh" | "ko";
+// 언어 관련 타입 정의 (한국어와 영어만 지원)
+export type Language = "ko" | "en";
 
 export interface LanguageOption {
   code: Language;

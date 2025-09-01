@@ -55,6 +55,11 @@ export default function AdminEdit() {
   const loadFile = async () => {
     setLoading(true);
     setMessage("");
+    if (!intent || !slug) {
+      setMessage("intent 또는 slug가 없습니다");
+      setLoading(false);
+      return;
+    }
     const filePath = `${intent}/${slug}.json`;
     const { data, error } = await supabase.storage
       .from("kuris-json")
@@ -110,93 +115,97 @@ export default function AdminEdit() {
   };
 
   return (
-    <div className="max-w-xl mx-auto py-12">
-      <h1 className="text-2xl font-bold mb-6">지침 수정</h1>
+    <div className="w-full py-8">
+      <h1 className="text-3xl font-bold mb-6">지침 수정</h1>
       {loading ? (
         <div className="text-center">로딩 중...</div>
       ) : (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <label className="block mb-1 font-medium">Intent *</label>
-            <input
-              type="text"
-              {...register("intent")}
-              className="w-full border px-3 py-2 rounded"
-            />
-            {errors.intent && (
-              <p className="text-red-500 text-sm">{errors.intent.message}</p>
-            )}
-          </div>
-          <div>
-            <label className="block mb-1 font-medium">Slug *</label>
-            <input
-              type="text"
-              {...register("slug")}
-              className="w-full border px-3 py-2 rounded"
-            />
-            {errors.slug && (
-              <p className="text-red-500 text-sm">{errors.slug.message}</p>
-            )}
-          </div>
-          <div>
-            <label className="block mb-1 font-medium">제목 *</label>
-            <input
-              type="text"
-              {...register("title")}
-              className="w-full border px-3 py-2 rounded"
-            />
-            {errors.title && (
-              <p className="text-red-500 text-sm">{errors.title.message}</p>
-            )}
-          </div>
-          <div>
-            <label className="block mb-1 font-medium">요약</label>
-            <input
-              type="text"
-              {...register("summary")}
-              className="w-full border px-3 py-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block mb-1 font-medium">상세 내용</label>
-            <textarea
-              {...register("details")}
-              className="w-full border px-3 py-2 rounded h-24"
-            />
-          </div>
-          <div>
-            <label className="block mb-1 font-medium">태그 (쉼표로 구분)</label>
-            <input
-              type="text"
-              {...register("tags")}
-              className="w-full border px-3 py-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block mb-1 font-medium">original_input *</label>
-            <textarea
-              {...register("original_input")}
-              className="w-full border px-3 py-2 rounded h-16"
-            />
-            {errors.original_input && (
-              <p className="text-red-500 text-sm">
-                {errors.original_input.message}
-              </p>
-            )}
-          </div>
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded disabled:opacity-50"
-            disabled={loading}
-          >
-            {loading ? "수정 중..." : "수정"}
-          </button>
-          {message && (
-            <div className="text-center text-sm text-gray-600 mt-2">
-              {message}
+        <div className="max-w-4xl mx-auto">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div>
+              <label className="block mb-1 font-medium">Intent *</label>
+              <input
+                type="text"
+                {...register("intent")}
+                className="w-full border px-3 py-2 rounded"
+              />
+              {errors.intent && (
+                <p className="text-red-500 text-sm">{errors.intent.message}</p>
+              )}
             </div>
-          )}
-        </form>
+            <div>
+              <label className="block mb-1 font-medium">Slug *</label>
+              <input
+                type="text"
+                {...register("slug")}
+                className="w-full border px-3 py-2 rounded"
+              />
+              {errors.slug && (
+                <p className="text-red-500 text-sm">{errors.slug.message}</p>
+              )}
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">제목 *</label>
+              <input
+                type="text"
+                {...register("title")}
+                className="w-full border px-3 py-2 rounded"
+              />
+              {errors.title && (
+                <p className="text-red-500 text-sm">{errors.title.message}</p>
+              )}
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">요약</label>
+              <input
+                type="text"
+                {...register("summary")}
+                className="w-full border px-3 py-2 rounded"
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">상세 내용</label>
+              <textarea
+                {...register("details")}
+                className="w-full border px-3 py-2 rounded h-24"
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">
+                태그 (쉼표로 구분)
+              </label>
+              <input
+                type="text"
+                {...register("tags")}
+                className="w-full border px-3 py-2 rounded"
+              />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium">original_input *</label>
+              <textarea
+                {...register("original_input")}
+                className="w-full border px-3 py-2 rounded h-16"
+              />
+              {errors.original_input && (
+                <p className="text-red-500 text-sm">
+                  {errors.original_input.message}
+                </p>
+              )}
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-blue-600 text-white py-2 rounded disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? "수정 중..." : "수정"}
+            </button>
+            {message && (
+              <div className="text-center text-sm text-gray-600 mt-2">
+                {message}
+              </div>
+            )}
+          </form>
+        </div>
       )}
     </div>
   );

@@ -25,7 +25,7 @@ serve(async (req) => {
       });
     }
 
-    /* 1️⃣ GPT : intent·title·tags·summary·details 추출 */
+    /* 1️⃣ GPT : intent·title·tags·summary·details 추출 (한국어 + 영어) */
     const gptResponse = await fetch(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -39,16 +39,36 @@ serve(async (req) => {
           messages: [
             {
               role: "system",
-              content: `You are an AI assistant that analyzes KUris (Korea University exchange student) guidelines and extracts structured information. 
+              content: `You are an AI assistant that analyzes KUris (Korea University exchange student) guidelines and extracts structured information in both Korean and English.
+            
+            CRITICAL REQUIREMENT: You MUST include BOTH full terms AND abbreviations/synonyms in BOTH directions for better vector search.
+            
             Return a JSON object with the following fields:
             - intent: category like "life/food", "visa/arc", "academic", "housing", "transportation", "health", "emergency"
             - title: concise title for the guideline
-            - summary: brief summary in Korean
-            - details: structured JSON object with specific information like dates, locations, contacts, requirements, etc.`,
+            - summary_ko: brief summary in Korean (MUST include both full terms and abbreviations)
+            - summary_en: brief summary in English (MUST include both full terms and abbreviations)
+            - details_ko: structured JSON object with specific information in Korean (MUST include both full terms and abbreviations)
+            - details_en: structured JSON object with specific information in English (MUST include both full terms and abbreviations)
+            
+            BIDIRECTIONAL SYNONYMS - YOU MUST INCLUDE BOTH:
+            - "Alien Registration Card" → MUST include "ARC" 
+            - "ARC" → MUST include "Alien Registration Card"
+            - "외국인등록증" → MUST include "ARC"
+            - "Visa" → MUST include "비자", "입국허가", "entry permit"
+            - "비자" → MUST include "Visa", "입국허가"
+            - "Dormitory" → MUST include "기숙사", "기숙", "dorm"
+            - "기숙사" → MUST include "Dormitory", "dorm"
+            
+            FORMAT EXAMPLE:
+            Korean: "ARC(외국인등록증, Alien Registration Card) 신청 안내"
+            English: "ARC(Alien Registration Card, 외국인등록증) application guide"
+            
+            REMEMBER: Always include both the full term AND its abbreviation/synonym in the same text!`,
             },
             {
               role: "user",
-              content: `Analyze this KUris guideline: ${original_input}`,
+              content: `Analyze this KUris guideline and provide information in both Korean and English: ${original_input}`,
             },
           ],
           temperature: 0.3,
@@ -128,14 +148,15 @@ serve(async (req) => {
       }
     }
 
-    /* 3-3. summary + details 합본 임베딩 생성 */
-    const fullText = `${meta.summary}\n\n${JSON.stringify(
-      meta.details,
+    /* 3-3. 한국어와 영어 각각 임베딩 생성 */
+    // 한국어 임베딩 생성
+    const fullTextKo = `${meta.summary_ko}\n\n${JSON.stringify(
+      meta.details_ko,
       null,
       2
     )}`;
 
-    const embResponse = await fetch("https://api.openai.com/v1/embeddings", {
+    const embKoResponse = await fetch("https://api.openai.com/v1/embeddings", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
@@ -143,16 +164,46 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "text-embedding-3-small",
-        input: fullText,
+        input: fullTextKo,
       }),
     });
 
-    if (!embResponse.ok) {
-      throw new Error(`Embedding API error: ${embResponse.statusText}`);
+    if (!embKoResponse.ok) {
+      throw new Error(
+        `Korean embedding API error: ${embKoResponse.statusText}`
+      );
     }
 
-    const embData = await embResponse.json();
-    const embedding = embData.data[0].embedding;
+    const embKoData = await embKoResponse.json();
+    const embeddingKo = embKoData.data[0].embedding;
+
+    // 영어 임베딩 생성
+    const fullTextEn = `${meta.summary_en}\n\n${JSON.stringify(
+      meta.details_en,
+      null,
+      2
+    )}`;
+
+    const embEnResponse = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: fullTextEn,
+      }),
+    });
+
+    if (!embEnResponse.ok) {
+      throw new Error(
+        `English embedding API error: ${embEnResponse.statusText}`
+      );
+    }
+
+    const embEnData = await embEnResponse.json();
+    const embeddingEn = embEnData.data[0].embedding;
 
     /* 3-4. guidelines insert */
     const { error: guidelineError } = await supabase.from("guidelines").insert({
@@ -160,8 +211,9 @@ serve(async (req) => {
       intent_id: intentRow.id,
       title: meta.title,
       json_path: jsonPath,
-      summary: meta.summary,
-      summary_embedding: embedding,
+      summary: meta.summary_ko, // 기본값으로 한국어 summary 사용
+      embedding_ko: embeddingKo,
+      embedding_en: embeddingEn,
       original_type: originalType,
       original_ref: originalRef,
       expires_at: retentionDays

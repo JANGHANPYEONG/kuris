@@ -2,10 +2,15 @@
 // 질문 → intent 분류 → 벡터 검색 → JSON 컨텍스트 → GPT 응답 → 로그 저장
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
-import { classifyIntent } from "@/lib/classify-intent";
+import { createClient } from "@supabase/supabase-js";
 import { getEmbedding } from "@/lib/embeddings";
 import OpenAI from "openai";
+
+// Supabase 클라이언트 생성 (service_role 키 사용)
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // 번역 데이터
 const TRANSLATIONS = {
@@ -46,11 +51,33 @@ function t(lang: string, key: keyof typeof TRANSLATIONS.en): string {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// 키워드 추출 함수
-function extractKeyword(question: string): string {
-  // 간단한 키워드 추출 (실제로는 더 정교한 NLP 사용)
-  const keywords = question.split(/\s+/).filter((word) => word.length > 2);
-  return keywords.slice(0, 3).join(" ");
+// 설정 가져오기 함수
+async function getSetting(
+  key: string,
+  defaultValue: string = "0.28"
+): Promise<string> {
+  try {
+    const { data, error } = await supabase
+      .from("settings")
+      .select("value")
+      .eq("key", key)
+      .single();
+
+    if (error || !data) {
+      console.log(
+        `설정 ${key}를 찾을 수 없어 기본값 ${defaultValue}를 사용합니다.`
+      );
+      return defaultValue;
+    }
+
+    return data.value;
+  } catch (error) {
+    console.log(
+      `설정 ${key} 조회 중 오류 발생, 기본값 ${defaultValue}를 사용합니다:`,
+      error
+    );
+    return defaultValue;
+  }
 }
 
 // JSON 컨텍스트 타입 정의
@@ -59,6 +86,10 @@ interface JsonContext {
   title: string;
   summary: string;
   details: Record<string, unknown>;
+  summary_ko?: string;
+  summary_en?: string;
+  details_ko?: Record<string, unknown>;
+  details_en?: Record<string, unknown>;
   original_input: string;
   created_at: string;
 }
@@ -82,11 +113,15 @@ interface Block {
 }
 
 // JSON 컨텍스트 로드 함수
-async function loadJsonContexts(jsonPaths: string[]): Promise<JsonContext[]> {
+async function loadJsonContexts(
+  jsonPaths: string[],
+  language: string = "ko"
+): Promise<JsonContext[]> {
   const contexts: JsonContext[] = [];
 
   console.log("=== JSON 컨텍스트 로드 시작 ===");
   console.log("로드할 JSON 경로 개수:", jsonPaths.length);
+  console.log("언어:", language);
 
   for (const path of jsonPaths) {
     try {
@@ -97,11 +132,29 @@ async function loadJsonContexts(jsonPaths: string[]): Promise<JsonContext[]> {
 
       if (!error && data) {
         const text = await data.text();
-        const jsonData = JSON.parse(text) as JsonContext;
-        contexts.push(jsonData);
+        const jsonData = JSON.parse(text);
+
+        // 언어별로 적절한 summary와 details 선택
+        const context: JsonContext = {
+          intent: jsonData.intent,
+          title: jsonData.title,
+          summary:
+            language === "en" ? jsonData.summary_en : jsonData.summary_ko,
+          details:
+            language === "en" ? jsonData.details_en : jsonData.details_ko,
+          summary_ko: jsonData.summary_ko,
+          summary_en: jsonData.summary_en,
+          details_ko: jsonData.details_ko,
+          details_en: jsonData.details_en,
+          original_input: jsonData.original_input,
+          created_at: jsonData.created_at,
+        };
+
+        contexts.push(context);
         console.log(`✅ JSON 로드 성공: ${path}`);
-        console.log(`  - Title: ${jsonData.title}`);
-        console.log(`  - Intent: ${jsonData.intent}`);
+        console.log(`  - Title: ${context.title}`);
+        console.log(`  - Intent: ${context.intent}`);
+        console.log(`  - Language: ${language}`);
       } else {
         console.log(`❌ JSON 로드 실패: ${path}`);
         console.log(`  - Error: ${error?.message || "Unknown error"}`);
@@ -145,7 +198,7 @@ async function createBlocksAnswer(
 다른 주제(예: 수학 문제, 일반 상식 등)는 "해당 질문은 KUris의 응답 범위를 벗어납니다."고 응답한다.
 
 - 제공된 JSON context 외의 사적 지식(헛웃음, 잡담)은 사용하지 말 것.  
-- 질문 언어(한국어·영어·일어·중국어)를 감지해 **같은 언어**로 답변한다.  
+- **반드시 ${language === "ko" ? "한국어" : "English"}로만 답변하라.**  
 - JSON \`summary\` 는 간략 설명, \`details\` 에 필요한 숫자·장소·연락처가 담겨 있다.  
 - 반드시 JSON 형식으로 응답하라: { "blocks": [...] }
 - blocks 타입: "text"(일반 텍스트), "link"(링크), "image"(이미지), "map"(지도)
@@ -156,6 +209,12 @@ async function createBlocksAnswer(
 - **굵은 글씨**: 중요한 키워드나 제목은 **굵은 글씨**로 강조하라
 - **줄바꿈**: 각 문단 사이에 적절한 줄바꿈을 넣어라
 - **구조화**: 제목 → 설명 → 세부사항 순서로 구조화하라
+
+## 언어 규칙
+- 질문 언어와 관계없이 **반드시 ${
+    language === "ko" ? "한국어" : "English"
+  }로만 답변**
+- ${language === "ko" ? "한국어" : "English"} 외의 언어 사용 금지
 
 ## JSON Context
 ${contextBlocks}`;
@@ -214,8 +273,14 @@ async function createStreamingBlocksAnswer(
   const systemPrompt = `# System
 너는 KUris 챗봇이다.
 - 제공된 JSON context 외의 사적 지식 사용 금지
-- 질문 언어로 답변
+- **반드시 ${language === "ko" ? "한국어" : "English"}로만 답변하라**
 - 반드시 최종 출력은 { "blocks": [...] } JSON 하나로 작성하라.
+
+## 언어 규칙
+- 질문 언어와 관계없이 **반드시 ${
+    language === "ko" ? "한국어" : "English"
+  }로만 답변**
+- ${language === "ko" ? "한국어" : "English"} 외의 언어 사용 금지
 
 ## Block 구조 규칙
 - blocks 타입: "text" | "link" | "image" | "map"
@@ -359,7 +424,7 @@ ${contextBlocks}`;
 
 export async function POST(req: NextRequest) {
   try {
-    const { question, language = "en", stream = false } = await req.json();
+    const { question, language = "ko", stream = false } = await req.json();
 
     if (!question) {
       return NextResponse.json(
@@ -367,6 +432,18 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // 언어 검증 (한국어와 영어만 허용)
+    if (language !== "ko" && language !== "en") {
+      return NextResponse.json(
+        { error: "Only Korean (ko) and English (en) are supported" },
+        { status: 400 }
+      );
+    }
+
+    console.log("=== 언어 설정 ===");
+    console.log("선택된 언어:", language);
+    console.log("질문:", question);
 
     // ① intent 분류 (주석처리)
     // const intent = await classifyIntent(question);
@@ -404,19 +481,28 @@ export async function POST(req: NextRequest) {
     // 데이터베이스 확인 (디버깅용)
     const { data: allGuidelines, error: checkError } = await supabase
       .from("guidelines")
-      .select("id, title, summary, summary_embedding")
+      .select("id, title, summary, embedding_ko, embedding_en")
       .limit(5);
 
     if (checkError) {
       console.log("데이터베이스 확인 오류:", checkError);
     }
 
+    // 설정에서 match_threshold 가져오기
+    const matchThreshold = parseFloat(
+      await getSetting("match_threshold", "0.28")
+    );
+
+    console.log("=== 현재 설정 ===");
+    console.log("Match Threshold:", matchThreshold);
+
     const { data: vecResults, error: vecError } = await supabase.rpc(
       "match_guidelines_by_vec",
       {
         intent_id: null, // intent 분류 없이 모든 intent에서 검색
         query_embedding: qEmb,
-        match_threshold: 0.3, // 적절한 임계값으로 조정
+        language: language, // 언어별 임베딩 사용
+        match_threshold: matchThreshold, // 설정에서 가져온 임계값 사용
         match_count: 5, // 더 많은 결과 가져오기
       }
     );
@@ -453,7 +539,7 @@ export async function POST(req: NextRequest) {
       console.log(`  ${index + 1}. ${path}`);
     });
 
-    const jsonContexts = await loadJsonContexts(uniquePaths);
+    const jsonContexts = await loadJsonContexts(uniquePaths, language);
 
     // ⑤ GPT Blocks JSON 응답 생성
     let answer;

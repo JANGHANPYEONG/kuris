@@ -11,14 +11,20 @@ create table if not exists public.guidelines (
   original_type text check (original_type in ('text','link','file')),
   original_ref text,                       -- 링크 URL or storage path or raw text
   summary text not null,
-  summary_embedding vector(1536),          -- pgvector
+  embedding_ko vector(1536),               -- 한국어 임베딩 (pgvector)
+  embedding_en vector(1536),               -- 영어 임베딩 (pgvector)
   expires_at timestamptz,
   created_at timestamptz default now(),
   uploaded_by uuid
 );
 
-create index if not exists guidelines_summary_embedding_idx
-  on guidelines using ivfflat (summary_embedding) with (lists = 1024);
+-- 한국어 임베딩 인덱스
+create index if not exists guidelines_embedding_ko_idx
+  on guidelines using ivfflat (embedding_ko) with (lists = 1024);
+
+-- 영어 임베딩 인덱스
+create index if not exists guidelines_embedding_en_idx
+  on guidelines using ivfflat (embedding_en) with (lists = 1024);
 
 create index if not exists guidelines_intent_id_idx
   on guidelines (intent_id); 

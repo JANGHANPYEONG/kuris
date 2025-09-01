@@ -201,7 +201,7 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-12 px-4">
+    <div className="w-full py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">운영진 연락처 관리</h1>
       </div>
