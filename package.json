@@ -13,6 +13,7 @@
     "@hookform/resolvers": "^5.1.1",
     "@supabase/supabase-js": "^2.56.1",
     "next": "15.4.2",
+    "openai": "^4.68.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-hook-form": "^7.60.0",
