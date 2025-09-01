@@ -1,96 +1,266 @@
 # KUris Chatbot
 
-Next.js 기반의 챗봇 애플리케이션입니다.
+[![Next.js](https://img.shields.io/badge/Next.js-15.4.2-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-2.56.1-green)](https://supabase.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-4.68.0-orange)](https://openai.com/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 🚀 배포 가이드
+KUris is an AI-powered chatbot built with Next.js, Supabase, and OpenAI. It leverages Retrieval-Augmented Generation (RAG) with vector embeddings and provides an admin dashboard for managing content and analytics. Supports multilingual interactions (Korean, English, Japanese, Chinese).
 
-### Vercel 배포 (추천)
+## Table of Contents
 
-1. **Vercel 계정 생성**
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Installation](#installation)
+- [Usage](#usage)
+- [API Documentation](#api-documentation)
+- [Project Structure](#project-structure)
+- [Security](#security)
+- [Contributing](#contributing)
+- [Contributors](#contributors)
+- [License](#license)
 
-   - [vercel.com](https://vercel.com)에서 GitHub 계정으로 로그인
+## Features
 
-2. **프로젝트 배포**
+### Core Functionality
 
-   - Vercel 대시보드에서 "New Project" 클릭
-   - GitHub 저장소 연결
-   - 자동으로 Next.js 프로젝트 감지됨
-   - "Deploy" 클릭
+- Conversational AI powered by OpenAI GPT with streaming responses
+- Retrieval-Augmented Generation (RAG) using pgvector for similarity search
+- Automatic intent classification and routing
+- Multilingual support (Korean, English, Japanese, Chinese)
+- Real-time chat interface with ChatGPT-style experience
 
-3. **환경 변수 설정** (필요한 경우)
-   - 프로젝트 설정 → Environment Variables에서 추가
+### Admin Dashboard
 
-### 다른 배포 옵션
+- Upload and manage guidelines/knowledge base
+- User analytics and chat statistics
+- System configuration and contact management
+- Secure role-based authentication
 
-#### Netlify
+### Technical Implementation
+
+- Vector embeddings with OpenAI
+- Supabase Edge Functions for serverless processing
+- Real-time PostgreSQL with subscriptions
+- Type-safe implementation with TypeScript
+- Form validation using React Hook Form + Zod
+
+## Tech Stack
+
+### Frontend
+
+- Next.js 15 (App Router)
+- TypeScript
+- Tailwind CSS
+- React Hook Form, Zod
+
+### Backend & Database
+
+- Supabase (PostgreSQL, Auth, Storage)
+- pgvector for similarity search
+- Edge Functions (serverless)
+
+### AI & ML
+
+- OpenAI GPT (chat responses)
+- OpenAI Embeddings (vectorization)
+- Custom RAG pipeline
+
+### Other
+
+- Naver Maps API
+- React Markdown
+
+## Installation
+
+### Prerequisites
+
+- Node.js 18+
+- npm 8+
+- Supabase account & project
+
+### Setup
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/your-org/kuris-chatbot.git
+   cd kuris-chatbot
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+3. **Set up Supabase**
+
+   ```bash
+   supabase login
+   supabase link --project-ref your-project-ref
+   supabase db push
+   supabase functions deploy
+   ```
+
+4. **Create environment variables**
+
+   Create `.env.local` in project root:
+
+   ```env
+   # Supabase
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   NEXT_PUBLIC_SUPABASE_EDGE_URL=your_supabase_edge_url
+   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+   # OpenAI
+   OPENAI_API_KEY=your_openai_api_key
+   ```
+
+## Usage
+
+### Development
 
 ```bash
-# 빌드 명령어
-npm run build
-# 배포 디렉토리
-.next
-```
-
-#### GitHub Pages
-
-```bash
-# next.config.ts에 추가
-const nextConfig = {
-  output: 'export',
-  trailingSlash: true,
-  images: {
-    unoptimized: true
-  }
-};
-```
-
-## 🛠️ 로컬 개발
-
-```bash
-npm install
 npm run dev
 ```
 
-## 📦 빌드
+App runs at `http://localhost:3000`
+
+### Production
 
 ```bash
 npm run build
 npm start
 ```
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Deployment
 
-## Getting Started
+### Vercel (Recommended)
 
-First, run the development server:
+1. Connect repository to Vercel
+2. Add environment variables in dashboard
+3. Automatic deployment on main branch push
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### Manual Deployment
+
+1. Set environment variables
+2. Run `npm run build`
+3. Serve `.next/` with Node.js or container
+
+### CI/CD
+
+Example GitHub Actions workflow (`.github/workflows/ci.yml`):
+
+```yaml
+name: CI
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## API Documentation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Chat API
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**POST** `/api/ask`
 
-## Learn More
+**Request Body:**
 
-To learn more about Next.js, take a look at the following resources:
+```json
+{
+  "question": "string",
+  "language": "ko|en|ja|zh",
+  "stream": true
+}
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Response:**
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```json
+{
+  "answer": "string",
+  "sources": [
+    {
+      "title": "string",
+      "content": "string",
+      "similarity": 0.95
+    }
+  ],
+  "intent": "string",
+  "language": "ko"
+}
+```
 
-## Deploy on Vercel
+### Admin APIs
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **POST** `/api/admin/login` – Admin login
+- **POST** `/api/admin/guidelines/upload` – Upload guidelines
+- **GET** `/api/admin/contacts` – Fetch contacts
+- **POST** `/api/admin/settings` – Update system settings
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+```
+kuris/
+├── app/                    # Next.js App Router
+│   ├── admin/             # Admin dashboard
+│   ├── api/               # API routes
+│   ├── chat/              # Chat interface
+│   └── globals.css        # Global styles
+├── components/            # Shared components
+├── lib/                   # Utilities (OpenAI, Supabase, etc.)
+├── supabase/              # DB migrations & edge functions
+├── docs/                  # Documentation
+└── public/                # Static assets
+```
+
+## Security
+
+- Row Level Security (RLS) policies in Supabase
+- Role-based admin authentication
+- Input validation & rate limiting
+- Sanitized responses to prevent XSS
+- **Important**: Never commit `.env.local` files to version control
+
+## Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/my-feature`)
+3. Commit changes (`git commit -m 'Add feature'`)
+4. Push branch (`git push origin feature/my-feature`)
+5. Open Pull Request
+
+### Code Style
+
+- Use TypeScript
+- Follow ESLint rules
+- Add tests for new features
+- Update docs as needed
+
+## Contributors
+
+- **JINSEONG JEONG** ([@JANGHANPYEONG](https://github.com/JANGHANPYEONG))
+
+## License
+
+This project is licensed under the MIT License – see [LICENSE](LICENSE).
+
+## Acknowledgments
+
+- [Next.js](https://nextjs.org/) team
+- [Supabase](https://supabase.com/)
+- [OpenAI](https://openai.com/)
+- [Vercel](https://vercel.com/)
