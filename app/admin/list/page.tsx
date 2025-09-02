@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useAdminData } from "@/lib/adminDataContext";
 
 interface JsonFile {
   name: string;
@@ -9,34 +10,14 @@ interface JsonFile {
 }
 
 export default function AdminList() {
-  const [files, setFiles] = useState<JsonFile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { state, fetchJsonFiles } = useAdminData();
 
   useEffect(() => {
-    fetchFiles();
-  }, []);
-
-  const fetchFiles = async () => {
-    try {
-      const { data, error } = await supabase.storage
-        .from("kuris-json")
-        .list("", { limit: 100 });
-
-      if (error) throw error;
-      // FileObject[] -> JsonFile[] 변환
-      const files: JsonFile[] = (data || []).map((file) => ({
-        name: file.name,
-        path: file.name,
-        created_at: file.created_at || "",
-      }));
-      setFiles(files);
-    } catch (err) {
-      setError("파일 목록을 불러올 수 없습니다.");
-    } finally {
-      setLoading(false);
+    // 캐시된 데이터가 있으면 사용, 없으면 새로 fetch (대시보드에서 미리 로드했지만 혹시 모를 경우를 대비)
+    if (state.jsonFiles.length === 0) {
+      fetchJsonFiles();
     }
-  };
+  }, [fetchJsonFiles, state.jsonFiles.length]);
 
   const groupByIntent = (files: JsonFile[]) => {
     const groups: Record<string, JsonFile[]> = {};
@@ -48,10 +29,12 @@ export default function AdminList() {
     return groups;
   };
 
-  if (loading) return <div className="text-center">로딩 중...</div>;
-  if (error) return <div className="text-red-600">{error}</div>;
+  if (state.loading.jsonFiles)
+    return <div className="text-center">로딩 중...</div>;
+  if (state.errors.jsonFiles)
+    return <div className="text-red-600">{state.errors.jsonFiles}</div>;
 
-  const groupedFiles = groupByIntent(files);
+  const groupedFiles = groupByIntent(state.jsonFiles);
 
   return (
     <div className="space-y-6">

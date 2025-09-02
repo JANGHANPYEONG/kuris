@@ -96,10 +96,12 @@ interface JsonContext {
 
 // 벡터 검색 결과 타입 정의
 interface VectorSearchResult {
-  id: number;
+  id: string;
   json_path: string;
-  similarity: number;
-  summary?: string;
+  title: string;
+  summary: string;
+  score: number;
+  matched_language: string;
 }
 
 // Blocks JSON 응답 타입 정의
@@ -424,7 +426,13 @@ ${contextBlocks}`;
 
 export async function POST(req: NextRequest) {
   try {
+    console.log("=== API 요청 시작 ===");
+    console.log("요청 URL:", req.url);
+    console.log("요청 메서드:", req.method);
+    console.log("요청 헤더:", Object.fromEntries(req.headers.entries()));
+
     const { question, language = "ko", stream = false } = await req.json();
+    console.log("요청 데이터:", { question, language, stream });
 
     if (!question) {
       return NextResponse.json(
@@ -435,6 +443,7 @@ export async function POST(req: NextRequest) {
 
     // 언어 검증 (한국어와 영어만 허용)
     if (language !== "ko" && language !== "en") {
+      console.log("언어 검증 실패:", language);
       return NextResponse.json(
         { error: "Only Korean (ko) and English (en) are supported" },
         { status: 400 }
@@ -473,10 +482,40 @@ export async function POST(req: NextRequest) {
     // ③ 벡터 후보 검색 (수정: intent_id 제거)
     console.log("=== 임베딩 생성 ===");
     console.log("질문:", question);
+
+    // OpenAI API 키 확인
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY가 설정되지 않았습니다.");
+      return NextResponse.json(
+        { error: "OpenAI API key is not configured" },
+        { status: 500 }
+      );
+    }
+
     const qEmb = await getEmbedding(question);
     console.log("임베딩 생성 완료, 길이:", qEmb.length);
 
     console.log("=== 벡터 검색 호출 ===");
+
+    // Supabase 연결 확인
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.SUPABASE_SERVICE_ROLE_KEY
+    ) {
+      console.error("Supabase 환경 변수가 설정되지 않았습니다.");
+      console.error(
+        "NEXT_PUBLIC_SUPABASE_URL:",
+        !!process.env.NEXT_PUBLIC_SUPABASE_URL
+      );
+      console.error(
+        "SUPABASE_SERVICE_ROLE_KEY:",
+        !!process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+      return NextResponse.json(
+        { error: "Supabase configuration is missing" },
+        { status: 500 }
+      );
+    }
 
     // 데이터베이스 확인 (디버깅용)
     const { data: allGuidelines, error: checkError } = await supabase
@@ -486,6 +525,10 @@ export async function POST(req: NextRequest) {
 
     if (checkError) {
       console.log("데이터베이스 확인 오류:", checkError);
+      return NextResponse.json(
+        { error: `Database connection error: ${checkError.message}` },
+        { status: 500 }
+      );
     }
 
     // 설정에서 match_threshold 가져오기
@@ -520,7 +563,9 @@ export async function POST(req: NextRequest) {
           console.log(`Row ${index + 1}:`);
           console.log(`  - ID: ${result.id}`);
           console.log(`  - JSON Path: ${result.json_path}`);
-          console.log(`  - Similarity: ${result.similarity}`);
+          console.log(`  - Title: ${result.title}`);
+          console.log(`  - Score: ${result.score}`);
+          console.log(`  - Matched Language: ${result.matched_language}`);
           console.log(`  - Summary: ${result.summary?.substring(0, 100)}...`);
         }
       );
@@ -653,10 +698,22 @@ export async function POST(req: NextRequest) {
       contexts_used: contexts_used,
     });
   } catch (error) {
-    console.error("Ask API error:", error);
+    console.error("=== Ask API 에러 ===");
+    console.error("에러 타입:", typeof error);
+    console.error(
+      "에러 메시지:",
+      error instanceof Error ? error.message : String(error)
+    );
+    console.error(
+      "에러 스택:",
+      error instanceof Error ? error.stack : "No stack trace"
+    );
+
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unknown error",
+        details:
+          process.env.NODE_ENV === "development" ? String(error) : undefined,
       },
       { status: 500 }
     );

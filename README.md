@@ -28,7 +28,7 @@ KUris is an AI-powered chatbot built with Next.js, Supabase, and OpenAI. It leve
 - Conversational AI powered by OpenAI GPT with streaming responses
 - Retrieval-Augmented Generation (RAG) using pgvector for similarity search
 - Automatic intent classification and routing
-- Multilingual support (Korean, English, Japanese, Chinese)
+- Multilingual support (Korean, English)
 - Real-time chat interface with ChatGPT-style experience
 
 ### Admin Dashboard
@@ -182,49 +182,81 @@ jobs:
 ```json
 {
   "question": "string",
-  "language": "ko|en|ja|zh",
-  "stream": true
+  "language": "ko|en",
+  "stream": boolean
 }
 ```
 
-**Response:**
+**Response (Non-streaming):**
 
 ```json
 {
-  "answer": "string",
-  "sources": [
+  "blocks": [
     {
-      "title": "string",
-      "content": "string",
-      "similarity": 0.95
+      "type": "text|link|image|map",
+      "text": "string",
+      "url": "string",
+      "title": "string"
     }
   ],
-  "intent": "string",
-  "language": "ko"
+  "intent": "vector-only|fallback",
+  "contexts_used": 3
 }
+```
+
+**Response (Streaming):**
+
+Content-Type: `application/x-ndjson`
+
+Each line contains a JSON block:
+
+```json
+{"type": "text", "text": "partial response..."}
+{"type": "text", "text": "more content..."}
 ```
 
 ### Admin APIs
 
-- **POST** `/api/admin/login` – Admin login
+- **POST** `/api/admin/login` – Admin authentication
+- **GET** `/api/admin/guidelines` – Fetch guidelines
+- **DELETE** `/api/admin/guidelines` – Delete guideline
 - **POST** `/api/admin/guidelines/upload` – Upload guidelines
-- **GET** `/api/admin/contacts` – Fetch contacts
-- **POST** `/api/admin/settings` – Update system settings
+- **GET** `/api/admin/contacts` – Fetch contact messages
+- **GET** `/api/admin/settings` – Get system settings
+- **PUT** `/api/admin/settings` – Update system settings
+- **POST** `/api/admin/signup` – Admin registration
 
 ## Project Structure
 
 ```
 kuris/
 ├── app/                    # Next.js App Router
-│   ├── admin/             # Admin dashboard
+│   ├── admin/             # Admin dashboard pages
+│   │   ├── contact/       # Contact management
+│   │   ├── guidelines/    # Guidelines management
+│   │   ├── settings/      # System settings
+│   │   ├── statistic/     # Analytics dashboard
+│   │   └── upload/        # File upload interface
 │   ├── api/               # API routes
+│   │   ├── admin/         # Admin-only APIs
+│   │   └── ask/           # Chat API endpoint
+│   ├── auth/              # Authentication pages
 │   ├── chat/              # Chat interface
+│   │   └── _components/   # Chat-specific components
 │   └── globals.css        # Global styles
-├── components/            # Shared components
-├── lib/                   # Utilities (OpenAI, Supabase, etc.)
-├── supabase/              # DB migrations & edge functions
+├── components/            # Shared React components
+├── lib/                   # Utilities & services
+│   ├── supabaseClient.ts  # Database client
+│   ├── openai.ts          # OpenAI configuration
+│   ├── embeddings.ts      # Vector embeddings
+│   └── tools.ts           # Helper functions
+├── supabase/              # Database & backend
+│   ├── functions/         # Edge Functions
+│   ├── sql/              # Database migrations
+│   └── policies.sql       # Row Level Security
 ├── docs/                  # Documentation
-└── public/                # Static assets
+├── public/                # Static assets
+└── middleware.ts          # Next.js middleware
 ```
 
 ## Security
@@ -252,7 +284,19 @@ kuris/
 
 ## Contributors
 
-- **JINSEONG JEONG** ([@JANGHANPYEONG](https://github.com/JANGHANPYEONG))
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/JANGHANPYEONG">
+        <img src="https://github.com/JANGHANPYEONG.png" width="100px;" alt="JINSEONG JEONG"/>
+        <br />
+        <sub><b>JINSEONG JEONG</b></sub>
+      </a>
+      <br />
+      <sub>Project Lead & Full-stack Developer</sub>
+    </td>
+  </tr>
+</table>
 
 ## License
 

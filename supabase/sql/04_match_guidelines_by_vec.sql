@@ -12,30 +12,51 @@ returns table (
   id uuid,
   json_path text,
   title text,
-  score float
+  summary text,
+  score float,
+  matched_language text
 )
 language sql stable
 as $$
-  select
-    g.id,
-    g.json_path,
-    g.title,
-    case 
-      when language = 'ko' then 1 - (g.embedding_ko <=> query_embedding)
-      when language = 'en' then 1 - (g.embedding_en <=> query_embedding)
-      else 1 - (g.embedding_ko <=> query_embedding)  -- 기본값은 한국어
-    end as score
-  from public.guidelines g
-  where (match_guidelines_by_vec.intent_id is null or g.intent_id = match_guidelines_by_vec.intent_id)
-    and case 
-      when language = 'ko' then g.embedding_ko <=> query_embedding < (1 - match_threshold)
-      when language = 'en' then g.embedding_en <=> query_embedding < (1 - match_threshold)
-      else g.embedding_ko <=> query_embedding < (1 - match_threshold)  -- 기본값은 한국어
-    end
-  order by case 
-    when language = 'ko' then g.embedding_ko <=> query_embedding
-    when language = 'en' then g.embedding_en <=> query_embedding
-    else g.embedding_ko <=> query_embedding  -- 기본값은 한국어
-  end   -- ascending = closer
+  with ko_results as (
+    select
+      g.id,
+      g.json_path,
+      g.title,
+      g.summary,
+      1 - (g.embedding_ko <=> query_embedding) as score,
+      'ko' as matched_language
+    from public.guidelines g
+    where (match_guidelines_by_vec.intent_id is null or g.intent_id = match_guidelines_by_vec.intent_id)
+      and g.embedding_ko is not null
+      and g.embedding_ko <=> query_embedding < (1 - match_threshold)
+  ),
+  en_results as (
+    select
+      g.id,
+      g.json_path,
+      g.title,
+      g.summary,
+      1 - (g.embedding_en <=> query_embedding) as score,
+      'en' as matched_language
+    from public.guidelines g
+    where (match_guidelines_by_vec.intent_id is null or g.intent_id = match_guidelines_by_vec.intent_id)
+      and g.embedding_en is not null
+      and g.embedding_en <=> query_embedding < (1 - match_threshold)
+  ),
+  combined_results as (
+    select * from ko_results
+    union all
+    select * from en_results
+  )
+  select 
+    id,
+    json_path,
+    title,
+    summary,
+    score,
+    matched_language
+  from combined_results
+  order by score desc
   limit match_count;
 $$; 

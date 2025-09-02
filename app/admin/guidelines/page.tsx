@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAdminData } from "@/lib/adminDataContext";
+import { useUpload } from "@/lib/uploadContext";
 
 interface GuidelineRow {
   id: string;
@@ -15,10 +17,9 @@ interface GuidelineRow {
 }
 
 export default function GuidelinesPage() {
-  const [guidelines, setGuidelines] = useState<GuidelineRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { state, fetchGuidelines, deleteGuideline } = useAdminData();
   const router = useRouter();
+  const { addUpload } = useUpload();
 
   useEffect(() => {
     // 세션/권한 보호
@@ -28,79 +29,17 @@ export default function GuidelinesPage() {
         router.replace("/admin/login");
       }
     });
-    fetchGuidelines();
-  }, []);
-
-  const fetchGuidelines = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      // 세션에서 액세스 토큰 가져오기
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error("인증 토큰이 없습니다.");
-      }
-
-      // API 엔드포인트에서 데이터 조회
-      const response = await fetch("/api/admin/guidelines", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "데이터를 불러올 수 없습니다.");
-      }
-
-      const result = await response.json();
-      console.log("API response:", result); // 디버깅용
-
-      setGuidelines(result.data);
-    } catch (e) {
-      console.error("Fetch guidelines error:", e);
-      setError(
-        `지침 목록을 불러올 수 없습니다: ${
-          e instanceof Error ? e.message : "알 수 없는 오류"
-        }`
-      );
-    } finally {
-      setLoading(false);
+    // 캐시된 데이터가 있으면 사용, 없으면 새로 fetch (대시보드에서 미리 로드했지만 혹시 모를 경우를 대비)
+    if (state.guidelines.length === 0) {
+      fetchGuidelines();
     }
-  };
+  }, [fetchGuidelines, state.guidelines.length]);
 
   const handleDelete = async (row: GuidelineRow) => {
     if (!confirm(`정말 삭제하시겠습니까? (${row.title})`)) return;
 
     try {
-      // 세션에서 액세스 토큰 가져오기
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error("인증 토큰이 없습니다.");
-      }
-
-      // API를 통해 삭제
-      const response = await fetch("/api/admin/guidelines", {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id: row.id }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "삭제에 실패했습니다.");
-      }
-
-      // 성공적으로 삭제된 경우 목록에서 제거
-      setGuidelines(guidelines.filter((g) => g.id !== row.id));
+      await deleteGuideline(row.id);
       alert("삭제되었습니다.");
     } catch (e) {
       console.error("Delete error:", e);
@@ -113,7 +52,14 @@ export default function GuidelinesPage() {
   };
 
   const handleRefresh = () => {
-    fetchGuidelines();
+    fetchGuidelines(true); // 강제 새로고침
+  };
+
+  const handleUploadClick = () => {
+    // 팝업에 업로드 항목 추가
+    addUpload("새 지침 업로드");
+    // 업로드 페이지로 이동
+    router.push("/admin/upload");
   };
 
   return (
@@ -127,12 +73,12 @@ export default function GuidelinesPage() {
           >
             새로고침
           </button>
-          <Link
-            href="/admin/upload"
+          <button
+            onClick={handleUploadClick}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
           >
             + 새 지침 업로드
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -143,15 +89,15 @@ export default function GuidelinesPage() {
         ← 대시보드로 돌아가기
       </Link>
 
-      {loading ? (
+      {state.loading.guidelines ? (
         <div className="text-center py-8">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p className="mt-2 text-gray-600">지침 목록을 불러오는 중...</p>
         </div>
-      ) : error ? (
+      ) : state.errors.guidelines ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="text-red-800 font-medium">오류 발생</div>
-          <div className="text-red-600 mt-1">{error}</div>
+          <div className="text-red-600 mt-1">{state.errors.guidelines}</div>
           <button
             onClick={handleRefresh}
             className="mt-3 bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
@@ -159,7 +105,7 @@ export default function GuidelinesPage() {
             다시 시도
           </button>
         </div>
-      ) : guidelines.length === 0 ? (
+      ) : state.guidelines.length === 0 ? (
         <div className="bg-gray-50 rounded-lg p-8 text-center">
           <div className="text-gray-500 text-lg mb-2">
             업로드된 지침이 없습니다.
@@ -170,7 +116,7 @@ export default function GuidelinesPage() {
         <div className="bg-white rounded-lg shadow overflow-x-auto">
           <div className="p-4 bg-gray-50 border-b">
             <div className="text-sm text-gray-600">
-              총 {guidelines.length}개의 지침이 있습니다.
+              총 {state.guidelines.length}개의 지침이 있습니다.
             </div>
           </div>
           <table className="w-full text-sm" style={{ minWidth: "1400px" }}>
@@ -215,7 +161,7 @@ export default function GuidelinesPage() {
               </tr>
             </thead>
             <tbody>
-              {guidelines.map((row: GuidelineRow) => (
+              {state.guidelines.map((row: GuidelineRow) => (
                 <tr key={row.id} className="border-b hover:bg-gray-50">
                   <td className="p-4 font-medium">{row.title}</td>
                   <td className="p-4">

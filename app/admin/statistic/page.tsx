@@ -1,8 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useAdminData } from "@/lib/adminDataContext";
 
 interface ChatLog {
   id: string;
@@ -18,65 +17,22 @@ interface StatisticData {
 }
 
 export default function StatisticPage() {
-  const [stats, setStats] = useState<StatisticData>({
-    totalChats: 0,
-    totalGuidelines: 0,
-    recentChats: [],
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const router = useRouter();
+  const { state, fetchStatistics } = useAdminData();
 
   useEffect(() => {
-    // 세션/권한 보호
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user || user.user_metadata?.role !== "admin") {
-        await supabase.auth.signOut();
-        router.replace("/admin/login");
-      }
-    });
-    fetchStatistics();
-  }, []);
-
-  const fetchStatistics = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      // 채팅 로그 수 조회
-      const { count: chatCount, error: chatError } = await supabase
-        .from("chat_logs")
-        .select("*", { count: "exact", head: true });
-
-      if (chatError) throw chatError;
-
-      // 지침 수 조회
-      const { count: guidelineCount, error: guidelineError } = await supabase
-        .from("guidelines")
-        .select("*", { count: "exact", head: true });
-
-      if (guidelineError) throw guidelineError;
-
-      // 최근 채팅 로그 조회
-      const { data: recentChats, error: recentChatsError } = await supabase
-        .from("chat_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (recentChatsError) throw recentChatsError;
-
-      setStats({
-        totalChats: chatCount || 0,
-        totalGuidelines: guidelineCount || 0,
-        recentChats: recentChats || [],
-      });
-    } catch (e) {
-      console.error("Fetch statistics error:", e);
-      setError("통계를 불러올 수 없습니다.");
-    } finally {
-      setLoading(false);
+    // 인증은 admin/layout.tsx에서 처리되므로 여기서는 제거
+    // 캐시된 데이터가 있으면 사용, 없으면 새로 fetch
+    if (
+      state.statistics.totalChats === 0 &&
+      state.statistics.totalGuidelines === 0
+    ) {
+      fetchStatistics();
     }
-  };
+  }, [
+    fetchStatistics,
+    state.statistics.totalChats,
+    state.statistics.totalGuidelines,
+  ]);
 
   return (
     <div className="w-full py-8">
@@ -91,10 +47,10 @@ export default function StatisticPage() {
         ← 대시보드로 돌아가기
       </Link>
 
-      {loading ? (
+      {state.loading.statistics ? (
         <div className="text-center py-8">로딩 중...</div>
-      ) : error ? (
-        <div className="text-red-600 py-8">{error}</div>
+      ) : state.errors.statistics ? (
+        <div className="text-red-600 py-8">{state.errors.statistics}</div>
       ) : (
         <div className="space-y-6">
           {/* 통계 카드 */}
@@ -121,7 +77,7 @@ export default function StatisticPage() {
                     총 채팅 수
                   </p>
                   <p className="text-2xl font-semibold text-gray-900">
-                    {stats.totalChats.toLocaleString()}
+                    {state.statistics.totalChats.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -149,7 +105,7 @@ export default function StatisticPage() {
                     총 지침 수
                   </p>
                   <p className="text-2xl font-semibold text-gray-900">
-                    {stats.totalGuidelines.toLocaleString()}
+                    {state.statistics.totalGuidelines.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -164,13 +120,13 @@ export default function StatisticPage() {
               </h2>
             </div>
             <div className="overflow-hidden">
-              {stats.recentChats.length === 0 ? (
+              {state.statistics.recentChats.length === 0 ? (
                 <div className="p-6 text-center text-gray-500">
                   아직 채팅 로그가 없습니다.
                 </div>
               ) : (
                 <div className="divide-y divide-gray-200">
-                  {stats.recentChats.map((chat) => (
+                  {state.statistics.recentChats.map((chat) => (
                     <div key={chat.id} className="p-6">
                       <div className="flex justify-between items-start mb-2">
                         <p className="text-sm text-gray-600">

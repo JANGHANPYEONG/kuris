@@ -6,12 +6,16 @@ interface ChatInputProps {
   onSend: (text: string) => void;
   sidebarOffset?: boolean;
   isCentered?: boolean;
+  isStreaming?: boolean;
+  onStopStreaming?: () => void;
 }
 
 export default function ChatInput({
   onSend,
   sidebarOffset = false,
   isCentered = false,
+  isStreaming = false,
+  onStopStreaming,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const { language, setLanguage } = useLanguage();
@@ -53,7 +57,7 @@ export default function ChatInput({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (value.trim()) {
+    if (value.trim() && !isStreaming) {
       onSend(value.trim());
       setValue("");
     }
@@ -131,30 +135,48 @@ export default function ChatInput({
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              handleSubmit(e as React.FormEvent);
+              if (!isStreaming) {
+                handleSubmit(e as React.FormEvent);
+              }
             }
           }}
         />
-        {/* Send button */}
-        <button
-          type="submit"
-          className="bg-kucrimson text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg hover:bg-kucrimson/90 transition"
-          aria-label="전송"
-        >
-          <svg
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            viewBox="0 0 24 24"
+        {/* Send/Stop button */}
+        {isStreaming ? (
+          <button
+            type="button"
+            onClick={() => {
+              console.log("ChatInput: 중지 버튼 클릭됨");
+              onStopStreaming?.();
+            }}
+            className="bg-red-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg hover:bg-red-600 transition"
+            aria-label="중지"
           >
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
-        </button>
+            <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="6" width="12" height="12" rx="2" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            type="submit"
+            className="bg-kucrimson text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg hover:bg-kucrimson/90 transition"
+            aria-label="전송"
+          >
+            <svg
+              width="22"
+              height="22"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              viewBox="0 0 24 24"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </button>
+        )}
       </div>
     </form>
   );

@@ -3,9 +3,17 @@ import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAdminData } from "@/lib/adminDataContext";
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const {
+    fetchContacts,
+    fetchGuidelines,
+    fetchStatistics,
+    fetchJsonFiles,
+    fetchSettings,
+  } = useAdminData();
 
   useEffect(() => {
     // 세션/권한 보호
@@ -14,8 +22,10 @@ export default function AdminDashboard() {
         await supabase.auth.signOut();
         router.replace("/admin/login");
       }
+      // 인증 성공 시 기본 통계만 로드 (다른 데이터는 필요할 때 로드)
+      fetchStatistics();
     });
-  }, []);
+  }, [fetchStatistics]);
 
   const dashboardItems = [
     {

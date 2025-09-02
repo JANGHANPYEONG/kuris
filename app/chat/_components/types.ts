@@ -15,7 +15,7 @@ export interface ChatMessage {
     | string
     | BotContent
     | { blocks: Block[]; intent?: string }
-    | { stream: ReadableStream<Uint8Array> };
+    | { stream: ReadableStream<Uint8Array>; onComplete?: () => void };
   isTyping?: boolean;
 }
 

@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAdminData } from "@/lib/adminDataContext";
 
 export default function SettingsPage() {
+  const { state, fetchSettings, updateSettings } = useAdminData();
   const [matchThreshold, setMatchThreshold] = useState("0.28");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [updating, setUpdating] = useState(false);
   const router = useRouter();
 
@@ -19,85 +19,31 @@ export default function SettingsPage() {
         router.replace("/admin/login");
       }
     });
-    fetchMatchThreshold();
-  }, [router]);
-
-  const fetchMatchThreshold = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error("인증 토큰이 없습니다.");
-      }
-
-      const response = await fetch("/api/admin/settings", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "설정을 불러올 수 없습니다.");
-      }
-
-      const result = await response.json();
-      console.log("Settings API response:", result);
-
-      const matchThresholdSetting = result.data.find(
-        (setting: { key: string; value: string }) =>
-          setting.key === "match_threshold"
-      );
-
-      console.log("Found match_threshold setting:", matchThresholdSetting);
-
-      if (matchThresholdSetting) {
-        setMatchThreshold(matchThresholdSetting.value);
-      }
-    } catch (e) {
-      console.error("Fetch settings error:", e);
-      setError(
-        `설정을 불러올 수 없습니다: ${
-          e instanceof Error ? e.message : "알 수 없는 오류"
-        }`
-      );
-    } finally {
-      setLoading(false);
+    // 캐시된 데이터가 있으면 사용, 없으면 새로 fetch (대시보드에서 미리 로드했지만 혹시 모를 경우를 대비)
+    if (
+      state.settings.match_threshold === "0.28" &&
+      state.lastUpdated.settings === null
+    ) {
+      fetchSettings();
     }
-  };
+  }, [
+    fetchSettings,
+    state.settings.match_threshold,
+    state.lastUpdated.settings,
+    router,
+  ]);
+
+  // 설정이 로드되면 로컬 상태 업데이트
+  useEffect(() => {
+    if (state.settings.match_threshold) {
+      setMatchThreshold(state.settings.match_threshold);
+    }
+  }, [state.settings.match_threshold]);
 
   const handleUpdateMatchThreshold = async () => {
     setUpdating(true);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error("인증 토큰이 없습니다.");
-      }
-
-      const response = await fetch("/api/admin/settings", {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ key: "match_threshold", value: matchThreshold }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API Error Response:", errorData);
-        throw new Error(
-          errorData.error ||
-            `설정 업데이트에 실패했습니다. (${response.status})`
-        );
-      }
-
+      await updateSettings({ match_threshold: matchThreshold });
       alert("설정이 업데이트되었습니다!");
     } catch (e) {
       console.error("Update setting error:", e);
@@ -124,17 +70,17 @@ export default function SettingsPage() {
         ← 대시보드로 돌아가기
       </Link>
 
-      {loading ? (
+      {state.loading.settings ? (
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p className="mt-2 text-gray-600">설정을 불러오는 중...</p>
         </div>
-      ) : error ? (
+      ) : state.errors.settings ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <div className="text-red-800 font-medium text-lg mb-2">오류 발생</div>
-          <div className="text-red-600 mb-4">{error}</div>
+          <div className="text-red-600 mb-4">{state.errors.settings}</div>
           <button
-            onClick={fetchMatchThreshold}
+            onClick={() => fetchSettings(true)}
             className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
           >
             다시 시도

@@ -1,17 +1,40 @@
 "use client";
 import React, { useRef, useEffect } from "react";
 import BotMessage from "./BotMessage";
-import { ChatMessage, TextData } from "./types";
+import { ChatMessage, TextData, Block } from "./types";
 
 export type { ChatMessage };
 
-export default function ChatWindow({ messages }: { messages: ChatMessage[] }) {
+export default function ChatWindow({
+  messages,
+  abortSignal,
+  isStreaming,
+  onStreamingComplete,
+  onContentUpdate,
+}: {
+  messages: ChatMessage[];
+  abortSignal?: AbortSignal;
+  isStreaming?: boolean;
+  onStreamingComplete?: (blocks: Block[]) => void;
+  onContentUpdate?: (blocks: Block[], currentText: string) => void;
+}) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   /* 새 메시지마다 하단으로 스크롤 */
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  /* 스트리밍 중일 때만 자동 스크롤 */
+  useEffect(() => {
+    if (!isStreaming) return;
+
+    const interval = setInterval(() => {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100); // 100ms마다 체크
+
+    return () => clearInterval(interval);
+  }, [isStreaming]);
 
   return (
     <section className="flex flex-col gap-4 px-6 py-6 pb-24">
@@ -34,7 +57,15 @@ export default function ChatWindow({ messages }: { messages: ChatMessage[] }) {
             // Bot 메시지 - 말풍선 없이 BotMessage 컴포넌트 사용
             <BotMessage
               content={msg.content}
-              isTyping={msg.isTyping || i === messages.length - 1} // 메시지의 isTyping 속성 또는 마지막 메시지
+              isTyping={
+                msg.isTyping ||
+                (i === messages.length - 1 &&
+                  typeof msg.content === "object" &&
+                  "stream" in msg.content)
+              } // 스트리밍 중인 메시지만 타이핑 효과 적용
+              abortSignal={abortSignal}
+              onStreamingComplete={onStreamingComplete}
+              onContentUpdate={onContentUpdate}
             />
           )}
         </div>

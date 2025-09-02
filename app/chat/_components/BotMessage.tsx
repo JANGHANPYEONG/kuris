@@ -27,13 +27,19 @@ interface BotMessageProps {
     | string
     | BotContent
     | { blocks: Block[]; intent?: string }
-    | { stream: ReadableStream<Uint8Array> };
+    | { stream: ReadableStream<Uint8Array>; onComplete?: () => void };
   isTyping?: boolean;
+  abortSignal?: AbortSignal;
+  onStreamingComplete?: (blocks: Block[]) => void;
+  onContentUpdate?: (blocks: Block[], currentText: string) => void;
 }
 
 export default function BotMessage({
   content,
   isTyping = false,
+  abortSignal,
+  onStreamingComplete,
+  onContentUpdate,
 }: BotMessageProps) {
   const { language } = useLanguage();
 
@@ -42,7 +48,14 @@ export default function BotMessage({
     return (
       <div className="w-full">
         <div className="text-gray-900 leading-relaxed">
-          <StreamingText stream={content.stream} className="" />
+          <StreamingText
+            stream={content.stream}
+            className=""
+            abortSignal={abortSignal}
+            onComplete={content.onComplete}
+            onStreamingComplete={onStreamingComplete}
+            onContentUpdate={onContentUpdate}
+          />
         </div>
       </div>
     );
@@ -98,8 +111,8 @@ export default function BotMessage({
   if ("blocks" in content && Array.isArray(content.blocks)) {
     const blocks = content.blocks as Block[];
 
-    // 타이핑 효과를 위해 StreamingText 컴포넌트 사용
-    if (isTyping) {
+    // 타이핑 효과는 스트리밍 중일 때만 적용
+    if (isTyping && typeof content === "object" && "stream" in content) {
       return (
         <div className="w-full">
           <div className="text-gray-900 leading-relaxed">

@@ -1,14 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import { type Contact } from "@/lib/contacts";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useAdminData } from "@/lib/adminDataContext";
 
 export default function ContactPage() {
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { state, fetchContacts, updateContact, deleteContact } = useAdminData();
   const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -19,51 +16,14 @@ export default function ContactPage() {
     phone: "",
   });
   const [editingId, setEditingId] = useState<string | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
-    // 세션/권한 보호
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user || user.user_metadata?.role !== "admin") {
-        await supabase.auth.signOut();
-        router.replace("/admin/login");
-      }
-    });
-    fetchContacts();
-  }, []);
-
-  const fetchContacts = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error("인증 토큰이 없습니다.");
-      }
-
-      const response = await fetch("/api/admin/contacts", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "연락처 목록을 불러올 수 없습니다.");
-      }
-
-      const data = await response.json();
-      setContacts(data);
-    } catch (e) {
-      console.error("Fetch contacts error:", e);
-      setError("연락처 목록을 불러올 수 없습니다.");
-    } finally {
-      setLoading(false);
+    // 인증은 admin/layout.tsx에서 처리되므로 여기서는 제거
+    // 캐시된 데이터가 있으면 사용, 없으면 새로 fetch
+    if (state.contacts.length === 0) {
+      fetchContacts();
     }
-  };
+  }, [fetchContacts, state.contacts.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,45 +34,20 @@ export default function ContactPage() {
 
     try {
       if (editingId) {
-        // 수정
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session?.access_token) {
-          throw new Error("인증 토큰이 없습니다.");
-        }
-
-        const response = await fetch("/api/admin/contacts", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ id: editingId, ...formData }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "연락처 수정 실패");
-        }
-
+        // 수정 - context의 updateContact 사용
+        const contactToUpdate: Contact = {
+          id: editingId,
+          ...formData,
+          created_at: new Date().toISOString(),
+        };
+        await updateContact(contactToUpdate);
         setEditingId(null);
       } else {
-        // 새로 추가
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session?.access_token) {
-          throw new Error("인증 토큰이 없습니다.");
-        }
-
+        // 새로 추가 - 직접 API 호출 (context에 addContact 함수가 없음)
         const response = await fetch("/api/admin/contacts", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify(formData),
         });
@@ -122,7 +57,8 @@ export default function ContactPage() {
           throw new Error(errorData.error || "연락처 생성 실패");
         }
 
-        await response.json();
+        // 새로 추가 후 목록 새로고침
+        fetchContacts();
       }
 
       setFormData({
@@ -134,7 +70,6 @@ export default function ContactPage() {
         phone: "",
       });
       setIsAdding(false);
-      fetchContacts();
     } catch (e) {
       console.error("Submit error:", e);
       alert("저장 중 오류가 발생했습니다.");
@@ -158,29 +93,8 @@ export default function ContactPage() {
     if (!confirm("정말 삭제하시겠습니까?")) return;
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error("인증 토큰이 없습니다.");
-      }
-
-      const response = await fetch("/api/admin/contacts", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ id }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "연락처 삭제 실패");
-      }
-
-      fetchContacts();
+      // context의 deleteContact 사용
+      await deleteContact(id);
     } catch (e) {
       console.error("Delete error:", e);
       alert("삭제 중 오류가 발생했습니다.");
@@ -213,10 +127,10 @@ export default function ContactPage() {
         ← 대시보드로 돌아가기
       </Link>
 
-      {loading ? (
+      {state.loading.contacts ? (
         <div className="text-center py-8">로딩 중...</div>
-      ) : error ? (
-        <div className="text-red-600 py-8">{error}</div>
+      ) : state.errors.contacts ? (
+        <div className="text-red-600 py-8">{state.errors.contacts}</div>
       ) : (
         <div className="space-y-6">
           {/* 연락처 등록 폼 */}
@@ -259,15 +173,31 @@ export default function ContactPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     직책
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.position}
                     onChange={(e) =>
                       setFormData({ ...formData, position: e.target.value })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="직책을 입력하세요"
-                  />
+                  >
+                    <option value="">직책을 선택하세요</option>
+                    <option value="회장">회장</option>
+                    <option value="부회장">부회장</option>
+                    <option value="기획부장">기획부장</option>
+                    <option value="홍보부장">홍보부장</option>
+                    <option value="조직부장">조직부장</option>
+                    <option value="미디어부장">미디어부장</option>
+                    <option value="총무부장">총무부장</option>
+                    <option value="커뮤니케이션부장">커뮤니케이션부장</option>
+                    <option value="1조 조장">1조 조장</option>
+                    <option value="2조 조장">2조 조장</option>
+                    <option value="3조 조장">3조 조장</option>
+                    <option value="4조 조장">4조 조장</option>
+                    <option value="5조 조장">5조 조장</option>
+                    <option value="6조 조장">6조 조장</option>
+                    <option value="7조 조장">7조 조장</option>
+                    <option value="8조 조장">8조 조장</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -346,13 +276,13 @@ export default function ContactPage() {
               )}
             </div>
             <div className="overflow-hidden">
-              {contacts.length === 0 ? (
+              {state.contacts.length === 0 ? (
                 <div className="p-6 text-center text-gray-500">
                   등록된 연락처가 없습니다.
                 </div>
               ) : (
                 <div className="divide-y divide-gray-200">
-                  {contacts.map((contact) => (
+                  {state.contacts.map((contact) => (
                     <div key={contact.id} className="p-6">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">

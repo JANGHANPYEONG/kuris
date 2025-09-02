@@ -4,6 +4,9 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import Link from "next/link";
+import { AdminDataProvider } from "@/lib/adminDataContext";
+import { UploadProvider } from "@/lib/uploadContext";
+import UploadPopup from "./_components/UploadPopup";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -35,25 +38,30 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-black">
-      <header className="bg-gray-900 text-white px-6 py-4 font-bold text-xl flex items-center justify-between">
-        <span>KUris Admin</span>
-        <nav className="space-x-4 text-base font-normal">
-          <Link href="/admin" className="hover:underline">
-            홈
-          </Link>
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              router.replace("/admin/login");
-            }}
-            className="ml-4 text-sm underline"
-          >
-            로그아웃
-          </button>
-        </nav>
-      </header>
-      <main className="w-full px-4 py-6 text-black">{children}</main>
-    </div>
+    <AdminDataProvider>
+      <UploadProvider>
+        <div className="min-h-screen bg-gray-50 text-black">
+          <header className="bg-gray-900 text-white px-6 py-4 font-bold text-xl flex items-center justify-between">
+            <span>KUris Admin</span>
+            <nav className="space-x-4 text-base font-normal">
+              <Link href="/admin" className="hover:underline">
+                홈
+              </Link>
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  router.replace("/admin/login");
+                }}
+                className="ml-4 text-sm underline"
+              >
+                로그아웃
+              </button>
+            </nav>
+          </header>
+          <main className="w-full px-4 py-6 text-black">{children}</main>
+          <UploadPopup />
+        </div>
+      </UploadProvider>
+    </AdminDataProvider>
   );
 }

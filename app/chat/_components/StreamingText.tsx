@@ -12,6 +12,9 @@ interface StreamingTextProps {
   onBlock?: (block: Block) => void;
   typingDelayMs?: number;
   className?: string;
+  abortSignal?: AbortSignal;
+  onStreamingComplete?: (blocks: Block[]) => void;
+  onContentUpdate?: (blocks: Block[], currentText: string) => void;
 }
 
 // 1) 스트림 unlock 대기 (StrictMode/핫리로드 중복 호출 완화)
@@ -178,6 +181,9 @@ const StreamingText: React.FC<StreamingTextProps> = ({
   onBlock,
   typingDelayMs = 20,
   className = "",
+  abortSignal,
+  onStreamingComplete,
+  onContentUpdate,
 }) => {
   // 상태
   const [blocksQueue, setBlocksQueue] = useState<Block[]>([]);
@@ -326,14 +332,54 @@ const StreamingText: React.FC<StreamingTextProps> = ({
       (async () => {
         const delay = typingDelayMs;
         for (let i = 1; i <= next.text!.length; i++) {
-          if (abortControllerRef.current?.signal.aborted) break;
+          // 외부 abort signal과 내부 abort controller 모두 확인
+          if (
+            abortControllerRef.current?.signal.aborted ||
+            abortSignal?.aborted
+          ) {
+            console.log("타이핑 중단됨 - abort signal 감지");
+            break;
+          }
 
-          setCurrentText(next.text!.substring(0, i));
+          const newText = next.text!.substring(0, i);
+          setCurrentText(newText);
+
+          // 실시간 업데이트 (10글자마다)
+          if (onContentUpdate && i % 10 === 0) {
+            onContentUpdate(displayedBlocks, newText);
+          }
+
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
 
-        if (!abortControllerRef.current?.signal.aborted) {
-          setDisplayedBlocks((prev) => [...prev, next]);
+        // 중단되지 않았을 때만 완료 처리
+        if (
+          !abortControllerRef.current?.signal.aborted &&
+          !abortSignal?.aborted
+        ) {
+          const newDisplayedBlocks = [...displayedBlocks, next];
+          setDisplayedBlocks(newDisplayedBlocks);
+          setCurrentText("");
+          setIsTyping(false);
+
+          // 완료된 블록 업데이트
+          if (onContentUpdate) {
+            onContentUpdate(newDisplayedBlocks, "");
+          }
+        } else {
+          // 중단된 경우: 현재까지 타이핑된 내용을 블록으로 저장하고 타이핑 상태만 해제
+          if (currentText) {
+            const newDisplayedBlocks = [
+              ...displayedBlocks,
+              { ...next, text: currentText },
+            ];
+            setDisplayedBlocks(newDisplayedBlocks);
+
+            // 중단된 내용 업데이트
+            if (onContentUpdate) {
+              onContentUpdate(newDisplayedBlocks, "");
+            }
+          }
           setCurrentText("");
           setIsTyping(false);
         }
@@ -341,15 +387,51 @@ const StreamingText: React.FC<StreamingTextProps> = ({
     } else {
       setDisplayedBlocks((prev) => [...prev, next]);
     }
-  }, [blocksQueue, isTyping, typingDelayMs]);
+  }, [blocksQueue, isTyping, typingDelayMs, abortSignal]);
 
   // 완료 상태 처리
   useEffect(() => {
     if (doneReading && !isTyping && blocksQueue.length === 0) {
       setIsComplete(true);
       onComplete?.();
+      // 스트리밍 완료 시 완성된 블록들을 부모에게 전달
+      if (onStreamingComplete && displayedBlocks.length > 0) {
+        onStreamingComplete(displayedBlocks);
+      }
     }
-  }, [doneReading, isTyping, blocksQueue.length, onComplete]);
+  }, [
+    doneReading,
+    isTyping,
+    blocksQueue.length,
+    onComplete,
+    onStreamingComplete,
+    displayedBlocks,
+  ]);
+
+  // abort signal 감지 시 즉시 중단
+  useEffect(() => {
+    if (abortSignal?.aborted) {
+      console.log("StreamingText: 외부 abort signal 감지, 스트리밍 중단");
+
+      // 현재 타이핑 중인 텍스트가 있다면 블록으로 저장
+      if (isTyping && currentText) {
+        // 현재 큐에서 처리 중인 블록이 있다면 그것을 사용, 없다면 새로 생성
+        const currentBlock =
+          blocksQueue.length > 0
+            ? blocksQueue[0]
+            : { type: "text" as const, text: "" };
+        setDisplayedBlocks((prev) => [
+          ...prev,
+          { ...currentBlock, text: currentText },
+        ]);
+      }
+
+      setIsTyping(false);
+      setCurrentText("");
+      setIsComplete(true);
+      onComplete?.();
+    }
+  }, [abortSignal?.aborted, onComplete, isTyping, currentText, blocksQueue]);
 
   // 스트림 처리
   useEffect(() => {
@@ -360,25 +442,53 @@ const StreamingText: React.FC<StreamingTextProps> = ({
     const ac = new AbortController();
     abortControllerRef.current = ac;
 
-    (async () => {
-      // 다음 틱에 시작 → StrictMode cleanup 먼저 실행되도록
-      await Promise.resolve();
-      if (ac.signal.aborted) return;
-      await readStream(stream, ac.signal);
-    })();
+    // 외부 abort signal과 연결
+    if (abortSignal) {
+      const handleAbort = () => {
+        ac.abort();
+      };
+      abortSignal.addEventListener("abort", handleAbort);
 
-    return () => {
-      ac.abort();
-      readingRef.current = false;
-    };
-  }, [stream, readStream]);
+      (async () => {
+        // 다음 틱에 시작 → StrictMode cleanup 먼저 실행되도록
+        await Promise.resolve();
+        if (ac.signal.aborted) return;
+        await readStream(stream, ac.signal);
+      })();
 
-  // 초기 블록 처리
+      return () => {
+        abortSignal.removeEventListener("abort", handleAbort);
+        ac.abort();
+        readingRef.current = false;
+      };
+    } else {
+      (async () => {
+        // 다음 틱에 시작 → StrictMode cleanup 먼저 실행되도록
+        await Promise.resolve();
+        if (ac.signal.aborted) return;
+        await readStream(stream, ac.signal);
+      })();
+
+      return () => {
+        ac.abort();
+        readingRef.current = false;
+      };
+    }
+  }, [stream, readStream, abortSignal]);
+
+  // 초기 블록 처리 (스트리밍이 아닌 경우 바로 표시)
   useEffect(() => {
     if (blocks && blocks.length > 0) {
-      setBlocksQueue(blocks);
+      if (!stream) {
+        // 스트리밍이 아닌 경우 바로 표시
+        setDisplayedBlocks(blocks);
+        setIsComplete(true);
+      } else {
+        // 스트리밍인 경우에만 큐에 추가
+        setBlocksQueue(blocks);
+      }
     }
-  }, [blocks]);
+  }, [blocks, stream]);
 
   // 현재 타이핑 중인 텍스트 렌더링
   const renderTypingText = () => {

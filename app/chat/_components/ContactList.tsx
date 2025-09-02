@@ -1,31 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import ContactCard from "./ContactCard";
 import { useLanguage } from "./LanguageContext";
 import { t } from "./translations";
-import { getContacts, type Contact } from "@/lib/contacts";
+import { useContacts } from "./ContactContext";
 
 export default function ContactList() {
   const { language } = useLanguage();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const fetchContacts = async () => {
-      try {
-        setLoading(true);
-        const data = await getContacts();
-        setContacts(data);
-      } catch (e) {
-        console.error("Error fetching contacts:", e);
-        setError("연락처를 불러올 수 없습니다.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchContacts();
-  }, []);
+  const { contacts, loading, error } = useContacts();
 
   if (loading) {
     return (

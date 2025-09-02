@@ -2,9 +2,10 @@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import { useUpload } from "@/lib/uploadContext";
 
 const schema = z.object({
   details: z.string().optional(),
@@ -22,55 +23,45 @@ export default function AdminUpload() {
     handleSubmit,
     watch,
     formState: { errors },
+    reset,
   } = useForm<FormData>({ resolver: zodResolver(schema) });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [links, setLinks] = useState<string[]>([""]);
   const router = useRouter();
+  const { addUpload, updateUploadStatus } = useUpload();
 
   const retention = watch("retention");
 
-  useEffect(() => {
-    // 세션/권한 보호
-    const checkAuth = async () => {
-      try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
-        console.log("Auth check:", { user: !!user, error: error?.message });
-
-        if (error || !user) {
-          console.log("No user, redirecting to login");
-          router.replace("/admin/login");
-          return;
-        }
-
-        // user_metadata에서 role 확인
-        console.log("User metadata:", user.user_metadata);
-
-        if (user.user_metadata?.role !== "admin") {
-          console.log("Not admin, signing out and redirecting");
-          await supabase.auth.signOut();
-          router.replace("/admin/login");
-        } else {
-          console.log("Auth successful, user is admin");
-        }
-      } catch (error) {
-        console.error("Auth check error:", error);
-        router.replace("/admin/login");
-      }
-    };
-
-    checkAuth();
-  }, [router]);
+  // 인증은 admin/layout.tsx에서 처리되므로 여기서는 제거
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
     setMessage("");
 
+    // 업로드 제목 생성 (상세 내용의 앞 10글자 + ...)
+    const uploadTitle = data.details
+      ? data.details.length > 10
+        ? data.details.substring(0, 10) + "..."
+        : data.details
+      : "지침 업로드";
+
+    // 팝업에 업로드 항목 추가
+    const uploadId = addUpload(uploadTitle);
+
+    // 업로드 시작 시 바로 폼 초기화
+    reset();
+    setSelectedFiles([]);
+    setLinks([""]);
+
+    // 버튼을 다시 활성화 (다른 업로드를 할 수 있도록)
+    setLoading(false);
+
     try {
+      // 업로드 상태를 업로드중으로 변경
+      updateUploadStatus(uploadId, "uploading");
+
       // FormData 준비
       const formData = new FormData();
 
@@ -135,17 +126,19 @@ export default function AdminUpload() {
         throw new Error(result.error || "업로드 실패");
       }
 
-      setMessage("업로드 성공!");
-      router.push("/admin");
+      // 업로드 성공 상태로 변경
+      updateUploadStatus(uploadId, "completed");
+
+      setMessage("업로드 성공! 다른 지침을 업로드할 수 있습니다.");
     } catch (error) {
       console.error("Upload error:", error);
-      setMessage(
-        `업로드 실패: ${
-          error instanceof Error ? error.message : "알 수 없는 오류"
-        }`
-      );
-    } finally {
-      setLoading(false);
+      const errorMessage =
+        error instanceof Error ? error.message : "알 수 없는 오류";
+
+      // 업로드 실패 상태로 변경
+      updateUploadStatus(uploadId, "error", errorMessage);
+
+      setMessage(`업로드 실패: ${errorMessage}`);
     }
   };
 
