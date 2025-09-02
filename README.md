@@ -6,7 +6,7 @@
 [![OpenAI](https://img.shields.io/badge/OpenAI-4.68.0-orange)](https://openai.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-KUris is an AI-powered chatbot built with Next.js, Supabase, and OpenAI. It leverages Retrieval-Augmented Generation (RAG) with vector embeddings and provides an admin dashboard for managing content and analytics. Supports multilingual interactions (Korean, English, Japanese, Chinese).
+KUris is an AI-powered chatbot built with Next.js, Supabase, and OpenAI. It leverages Retrieval-Augmented Generation (RAG) with vector embeddings and provides an admin dashboard for managing content and analytics. Supports multilingual interactions (Korean, English).
 
 ## Table of Contents
 
@@ -85,8 +85,8 @@ KUris is an AI-powered chatbot built with Next.js, Supabase, and OpenAI. It leve
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/your-org/kuris-chatbot.git
-   cd kuris-chatbot
+   git clone https://github.com/your-org/kuris-chatbot.git](https://github.com/JANGHANPYEONG/kuris.git
+   cd kuris
    ```
 
 2. **Install dependencies**
